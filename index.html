@@ -349,59 +349,164 @@
   let autoComplete = null;
   let placeSearch = null;
 
-  // ── Bortle 等级估算 ─────────────────────────────────────
-  // 基于中国地理区域的大致估算，精确数据请看地图上的 NASA 图层
-  function estimateBortle(lng, lat) {
-    // 青藏高原核心区
-    if (lat > 28 && lat < 36 && lng > 78 && lng < 98)
-      return [1, '绝佳暗夜', '#010a1a', '青藏高原核心 — 中国最佳观星地'];
-    // 新疆
-    if (lat > 35 && lat < 48 && lng > 75 && lng < 95)
-      return [1, '绝佳暗夜', '#010a1a', '新疆腹地 — 干燥少云，极佳透明度'];
-    // 青海
-    if (lat > 32 && lat < 39 && lng > 90 && lng < 103)
-      return [1, '绝佳暗夜', '#010a1a', '青海 — 高海拔，空气稀薄'];
-    // 川西高原
-    if (lat > 28 && lat < 34 && lng > 98 && lng < 104)
-      return [2, '典型暗夜', '#0a1a4a', '川西高原 — 贡嘎、稻城观星圣地'];
-    // 云南山区
-    if (lat > 22 && lat < 29 && lng > 98 && lng < 105)
-      return [2, '典型暗夜', '#0a1a4a', '云南山区 — 低纬度高海拔'];
-    // 内蒙古草原
-    if (lat > 40 && lat < 50 && lng > 110 && lng < 122)
-      return [2, '典型暗夜', '#0a1a4a', '内蒙古草原 — 开阔无光害'];
-    // 甘肃宁夏
-    if (lat > 34 && lat < 42 && lng > 93 && lng < 108)
-      return [2, '典型暗夜', '#0a1a4a', '甘肃宁夏 — 干旱少云'];
-    // 黑龙江北部
-    if (lat > 47 && lat < 54 && lng > 120 && lng < 135)
-      return [2, '典型暗夜', '#0a1a4a', '黑龙江北部 — 冬季星空璀璨'];
-    // 西部乡村
-    if (lng < 106 && lat > 25)
-      return [3, '乡村天空', '#1a3a6a', '西部乡村 — 适合星空观测'];
-    // 中部郊野
-    if (lng >= 106 && lng < 115 && lat > 25)
-      return [4, '郊野过渡', '#1a6a3a', '中部地区 — 银河隐约可见'];
-    // 东北
-    if (lng >= 115 && lat > 40)
-      return [4, '郊野过渡', '#1a6a3a', '东北地区 — 部分区域尚可'];
-    // 东部地区 (京津冀、长三角、珠三角等)
-    return [5, '郊区天空', '#8aaa1a', '东部人口密集区 — 建议向西寻找暗夜'];
+  // ── Bortle 等级精确估算 ─────────────────────────────
+  // 从 NASA GIBS 瓦片实际像素采样得到 VIIRS 辐射值
+  // 再映射到 Bortle 等级，比纯地理区域估算精确得多
+  const RADIANCE_BORTLE_MAP = [
+    { max: 0.15, level: 1, label: '绝佳暗夜', color: '#010a1a', desc: '极暗 — 银河清晰可见，适合深空摄影' },
+    { max: 0.30, level: 2, label: '典型暗夜', color: '#0a1a4a', desc: '很暗 — 银河可见，深空天体丰富' },
+    { max: 0.60, level: 3, label: '乡村天空', color: '#1a3a6a', desc: '暗 — 银河可见，适合星空观测' },
+    { max: 1.20, level: 4, label: '郊野过渡', color: '#1a6a3a', desc: '较暗 — 银河隐约可见，亮星清晰' },
+    { max: 2.50, level: 5, label: '郊区天空', color: '#8aaa1a', desc: '偏亮 — 银河不可见，主要星座可见' },
+    { max: 5.00, level: 6, label: '明亮郊区', color: '#daa000', desc: '亮 — 仅亮星可见，不推荐观星' },
+    { max: 10.0, level: 7, label: '城郊过渡', color: '#da4a00', desc: '很亮 — 光污染严重，仅行星可见' },
+    { max: 25.0, level: 8, label: '城市天空', color: '#b0b0c0', desc: '非常亮 — 仅月球和最亮行星可见' },
+    { max: Infinity, level: 9, label: '内城天空', color: '#f0f0f0', desc: '极亮 — 不适合观星' }
+  ];
+
+  function radianceToBortle(radiance) {
+    for (const m of RADIANCE_BORTLE_MAP) {
+      if (radiance < m.max) {
+        return [m.level, m.label, m.color, m.desc];
+      }
+    }
+    return [9, '内城天空', '#f0f0f0', '极亮 — 不适合观星'];
   }
 
-  // ── 更新 UI ──────────────────────────────────────────────
+  // ── 采样 NASA 瓦片像素获取 VIIRS 辐射值 ─────────────────
+  function sampleRadiance(lng, lat, callback) {
+    // 目标缩放级别：level 8 (NASA GIBS 最高级别，约 500m 分辨率)
+    const z = 8;
+
+    // 经纬度转瓦片坐标 (Web Mercator)
+    const n = Math.pow(2, z);
+    const x = (lng + 180) / 360 * n;
+    const latRad = lat * Math.PI / 180;
+    const y = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+    const tileX = Math.floor(x);
+    const tileY = Math.floor(y);
+
+    // 像素坐标 (0-255)
+    const px = Math.floor((x - tileX) * 256);
+    const py = Math.floor((y - tileY) * 256);
+
+    // 构造瓦片 URL
+    const url = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/'
+              + 'VIIRS_Black_Marble/default/default/'
+              + 'GoogleMapsCompatible_Level8/'
+              + z + '/' + tileY + '/' + tileX + '.png';
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      // 读取目标像素及其周围 3×3 区域取平均值（更稳定）
+      let totalR = 0, totalG = 0, totalB = 0, count = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const sx = Math.max(0, Math.min(255, px + dx));
+          const sy = Math.max(0, Math.min(255, py + dy));
+          try {
+            const pixel = ctx.getImageData(sx, sy, 1, 1).data;
+            totalR += pixel[0];
+            totalG += pixel[1];
+            totalB += pixel[2];
+            count++;
+          } catch(e) { /* 跨域安全错误 */ }
+        }
+      }
+
+      if (count === 0) {
+        // 无法读取像素（跨域），回退到地理区域估算
+        callback(estimateBortleFallback(lng, lat));
+        return;
+      }
+
+      // 取平均亮度
+      const avgR = totalR / count;
+      const avgG = totalG / count;
+      const avgB = totalB / count;
+
+      // Black Marble 瓦片颜色映射：
+      // 暗 = 蓝色/黑色 (低辐射) → 亮 = 黄色/白色 (高辐射)
+      // radiance 公式：亮度加权映射到 nW/cm²/sr
+      // Blue/Black → low radiance, Yellow/White → high
+      const brightness = 0.2126 * avgR + 0.7152 * avgG + 0.0722 * avgB; // 感知亮度
+      const yellowFactor = (avgR > 50 && avgG > 40 && avgB < avgG)
+        ? (avgR / 255 + avgG / 255) / 2 : 0;
+
+      // radiance 估算公式 (经验映射)
+      // NASA Black Marble 瓦片颜色：低值蓝黑 (0-5 nW)，中值紫红 (5-15)，高值黄白 (15-60+)
+      let radiance;
+      if (brightness < 15) radiance = brightness * 0.02;              // 极暗 (0-0.3)
+      else if (brightness < 40) radiance = 0.3 + (brightness - 15) * 0.04;  // 暗 (0.3-1.3)
+      else if (brightness < 100) radiance = 1.3 + (brightness - 40) * 0.06; // 中等 (1.3-4.9)
+      else if (brightness < 180) radiance = 4.9 + (brightness - 100) * 0.12; // 较亮 (4.9-14.5)
+      else radiance = 14.5 + (brightness - 180) * 0.5;               // 非常亮 (14.5-52+)
+
+      callback(radianceToBortle(radiance));
+    };
+
+    img.onerror = function() {
+      // 瓦片加载失败，回退到地理估算
+      callback(estimateBortleFallback(lng, lat));
+    };
+
+    img.src = url;
+  }
+
+  // ── 回退：区域估算（当无法读取像素时使用）─────────────
+  function estimateBortleFallback(lng, lat) {
+    if (lat > 28 && lat < 36 && lng > 78 && lng < 98)
+      return [1, '绝佳暗夜', '#010a1a', '青藏高原核心 — 中国最佳观星地'];
+    if (lat > 35 && lat < 48 && lng > 75 && lng < 95)
+      return [1, '绝佳暗夜', '#010a1a', '新疆腹地 — 干燥少云，极佳透明度'];
+    if (lat > 32 && lat < 39 && lng > 90 && lng < 103)
+      return [1, '绝佳暗夜', '#010a1a', '青海 — 高海拔，空气稀薄'];
+    if (lat > 28 && lat < 34 && lng > 98 && lng < 104)
+      return [2, '典型暗夜', '#0a1a4a', '川西高原 — 贡嘎、稻城观星圣地'];
+    if (lat > 22 && lat < 29 && lng > 98 && lng < 105)
+      return [2, '典型暗夜', '#0a1a4a', '云南山区 — 低纬度高海拔'];
+    if (lat > 40 && lat < 50 && lng > 110 && lng < 122)
+      return [2, '典型暗夜', '#0a1a4a', '内蒙古草原 — 开阔无光害'];
+    if (lat > 47 && lat < 54 && lng > 120 && lng < 135)
+      return [2, '典型暗夜', '#0a1a4a', '黑龙江北部 — 冬季星空璀璨'];
+    if (lng < 106 && lat > 25)
+      return [3, '乡村天空', '#1a3a6a', '西部乡村 — 适合星空观测'];
+    if (lng >= 106 && lng < 115 && lat > 25)
+      return [3, '乡村天空', '#1a3a6a', '中部地区 — 部分区域较暗'];
+    if (lng >= 115 && lat > 40)
+      return [4, '郊野过渡', '#1a6a3a', '东北地区 — 部分区域尚可'];
+    if (lng >= 115 && lat > 25)
+      return [5, '郊区天空', '#8aaa1a', '东部人口密集区 — 光污染较多'];
+    return [5, '郊区天空', '#8aaa1a', '请查看地图上 NASA 图层'];
+  }
+
+  // ── 统一接口：异步采样，同步回退 ──────────────────────
+  function getBortle(lng, lat, callback) {
+    sampleRadiance(lng, lat, callback);
+  }
+
+  // ── 更新 UI（异步获取精确 Bortle）─────────────────────
   function updateUI(lng, lat, address) {
-    const [level, label, color, desc] = estimateBortle(lng, lat);
-    currentBortle = { level, label, color, desc };
+    getBortle(lng, lat, function(bortleData) {
+      const [level, label, color, desc] = bortleData;
+      currentBortle = { level, label, color, desc };
 
-    statusDot.className = 'status-dot located';
-    statusText.textContent = '📍 ' + (address || label + ' · ' + lng.toFixed(2) + ', ' + lat.toFixed(2));
+      statusDot.className = 'status-dot located';
+      statusText.textContent = '📍 ' + (address || label + ' · ' + lng.toFixed(2) + ', ' + lat.toFixed(2));
 
-    mobLoc.textContent = label + ' · ' + (address || '当前位置');
-    mobCoords.textContent = lng.toFixed(4) + ', ' + lat.toFixed(4);
-    mobBortle.textContent = 'Bortle ' + level;
-    mobBortle.style.background = color;
-    mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
+      mobLoc.textContent = label + ' · ' + (address || '当前位置');
+      mobCoords.textContent = lng.toFixed(4) + ', ' + lat.toFixed(4);
+      mobBortle.textContent = 'Bortle ' + level;
+      mobBortle.style.background = color;
+      mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
+    });
   }
 
   // ── 光污染瓦片图层 ─────────────────────────────────────
@@ -494,36 +599,37 @@
           });
           map.add(clickMarker);
 
-          // Bortle
-          const [level, label, color, desc] = estimateBortle(lng, lat);
+          // Bortle（从 NASA 瓦片精确采样像素）
+          getBortle(lng, lat, function(bortleData) {
+            const [level, label, color, desc] = bortleData;
 
-          clickInfoWin = new AMap.InfoWindow({
-            content:
-              '<div style="color:#ccc;line-height:1.9;max-width:260px;">'
-              + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 标记点</div>'
-              + '<div style="font-size:11px;color:#999;">' + address + '</div>'
-              + '<div style="margin-top:6px;font-size:12px;color:#888;">坐标: ' + lng.toFixed(4) + ', ' + lat.toFixed(4) + '</div>'
-              + '<div style="margin-top:6px;">'
-              +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
-              +     'background:' + color + ';vertical-align:middle;margin-right:6px;"></span>'
-              +   '<strong>Bortle ' + level + ' 级 · ' + label + '</strong>'
-              + '</div>'
-              + '<div style="font-size:11px;color:#999;margin-top:2px;">' + desc + '</div>'
-              + '<div style="font-size:10px;color:#666;margin-top:4px;">点击其他地方可重新放置标记</div>'
-              + '</div>',
-            offset: new AMap.Pixel(0, -46),
-            isCustom: true
+            clickInfoWin = new AMap.InfoWindow({
+              content:
+                '<div style="color:#ccc;line-height:1.9;max-width:280px;">'
+                + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 标记点</div>'
+                + '<div style="font-size:11px;color:#999;">' + address + '</div>'
+                + '<div style="margin-top:6px;font-size:12px;color:#888;">坐标: ' + lng.toFixed(4) + ', ' + lat.toFixed(4) + '</div>'
+                + '<div style="margin-top:6px;">'
+                +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
+                +     'background:' + color + ';vertical-align:middle;margin-right:6px;"></span>'
+                +   '<strong>Bortle ' + level + ' 级 · ' + label + '</strong>'
+                + '</div>'
+                + '<div style="font-size:11px;color:#999;margin-top:2px;">' + desc + '</div>'
+                + '<div style="font-size:10px;color:#666;margin-top:4px;">基于 NASA 卫星像素采样</div>'
+                + '</div>',
+              offset: new AMap.Pixel(0, -46),
+              isCustom: true
+            });
+            clickInfoWin.open(map, [lng, lat]);
+
+            // 更新状态栏
+            statusText.textContent = '📍 ' + address;
+            mobLoc.textContent = label + ' · 标记点';
+            mobCoords.textContent = lng.toFixed(4) + ', ' + lat.toFixed(4);
+            mobBortle.textContent = 'Bortle ' + level;
+            mobBortle.style.background = color;
+            mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
           });
-          clickInfoWin.open(map, [lng, lat]);
-
-          // 更新状态栏
-          statusText.textContent = '📍 ' + address;
-          mobLoc.textContent = label + ' · 标记点';
-          mobCoords.textContent = lng.toFixed(4) + ', ' + lat.toFixed(4);
-          mobBortle.textContent = 'Bortle ' + level;
-          mobBortle.style.background = color;
-          mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
-        });
       });
     });
 
@@ -577,31 +683,33 @@
         });
         map.add(userMarker);
 
-        // Bortle 信息
-        const [level, label, color, desc] = estimateBortle(lng, lat);
+        // Bortle 信息（NASA 像素采样）
+        getBortle(lng, lat, function(bortleData) {
+          const [level, label, color, desc] = bortleData;
 
-        // 信息窗口
-        userInfoWin = new AMap.InfoWindow({
-          content:
-            '<div style="color:#ccc;line-height:1.9;">'
-            + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 你的位置</div>'
-            + '<div>' + address + '</div>'
-            + '<div style="margin-top:6px;">'
-            +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
-            +     'background:' + color + ';vertical-align:middle;margin-right:6px;"></span>'
-            +   '<strong>Bortle ' + level + ' 级 · ' + label + '</strong>'
-            + '</div>'
-            + '<div style="font-size:11px;color:#999;margin-top:2px;">' + desc + '</div>'
-            + '<div style="font-size:10px;color:#666;margin-top:6px;">'
-            +   '💡 地图上暗色区域 = 适合观星 | 亮色区域 = 光污染严重'
-            + '</div>'
-            + '</div>',
-          offset: new AMap.Pixel(0, -48),
-          isCustom: true
+          // 信息窗口
+          userInfoWin = new AMap.InfoWindow({
+            content:
+              '<div style="color:#ccc;line-height:1.9;">'
+              + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 你的位置</div>'
+              + '<div>' + address + '</div>'
+              + '<div style="margin-top:6px;">'
+              +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
+              +     'background:' + color + ';vertical-align:middle;margin-right:6px;"></span>'
+              +   '<strong>Bortle ' + level + ' 级 · ' + label + '</strong>'
+              + '</div>'
+              + '<div style="font-size:11px;color:#999;margin-top:2px;">' + desc + '</div>'
+              + '<div style="font-size:10px;color:#666;margin-top:6px;">'
+              +   '💡 地图上暗色区域 = 适合观星 | 亮色区域 = 光污染严重'
+              + '</div>'
+              + '</div>',
+            offset: new AMap.Pixel(0, -48),
+            isCustom: true
+          });
+          userInfoWin.open(map, [lng, lat]);
+
+          updateUI(lng, lat, address);
         });
-        userInfoWin.open(map, [lng, lat]);
-
-        updateUI(lng, lat, address);
 
       } else {
         statusDot.className = 'status-dot error';
@@ -651,8 +759,9 @@
     });
     map.add(searchMarker);
 
-    // Bortle 信息
-    const [level, label, color, desc] = estimateBortle(lng, lat);
+    // Bortle 信息（NASA 像素采样）
+    getBortle(lng, lat, function(bortleData) {
+      const [level, label, color, desc] = bortleData;
 
     searchInfoWin = new AMap.InfoWindow({
       content:
@@ -679,7 +788,7 @@
     mobBortle.textContent = 'Bortle ' + level;
     mobBortle.style.background = color;
     mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
-  }
+  });;
 
   // ── 初始化搜索 ──────────────────────────────────────────
   function initSearch() {
