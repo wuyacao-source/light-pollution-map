@@ -343,7 +343,7 @@
   const searchClear = $('search-clear');
 
   // ── State ─────────────────────────────────────────────────
-  let map, geolocation, lightLayer, userMarker, userInfoWin, searchMarker, searchInfoWin;
+  let map, geolocation, lightLayer, userMarker, userInfoWin, searchMarker, searchInfoWin, clickMarker, clickInfoWin;
   let layerVisible = true;
   let currentBortle = null;
   let autoComplete = null;
@@ -462,6 +462,70 @@
 
     // 初始化搜索
     initSearch();
+
+    // ══════ 地图点击：放置标记并显示光污染等级 ══════
+    map.on('click', function(e) {
+      const lng = e.lnglat.lng;
+      const lat = e.lnglat.lat;
+
+      // 逆地理编码获取地址
+      AMap.plugin('AMap.Geocoder', function() {
+        const geocoder = new AMap.Geocoder({});
+        geocoder.getAddress([lng, lat], function(geoStatus, geoResult) {
+          const address = (geoStatus === 'complete' && geoResult.regeocode)
+            ? geoResult.regeocode.formattedAddress
+            : lng.toFixed(4) + ', ' + lat.toFixed(4);
+
+          // 移除旧点击标记
+          if (clickMarker) { map.remove(clickMarker); clickMarker = null; }
+          if (clickInfoWin) { map.remove(clickInfoWin); clickInfoWin = null; }
+
+          // 新标记
+          clickMarker = new AMap.Marker({
+            position: [lng, lat],
+            icon: new AMap.Icon({
+              size: new AMap.Size(28, 42),
+              image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
+              imageSize: new AMap.Size(28, 42),
+              imageOffset: new AMap.Pixel(0, 0)
+            }),
+            anchor: 'bottom-center',
+            zIndex: 110
+          });
+          map.add(clickMarker);
+
+          // Bortle
+          const [level, label, color, desc] = estimateBortle(lng, lat);
+
+          clickInfoWin = new AMap.InfoWindow({
+            content:
+              '<div style="color:#ccc;line-height:1.9;max-width:260px;">'
+              + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 标记点</div>'
+              + '<div style="font-size:11px;color:#999;">' + address + '</div>'
+              + '<div style="margin-top:6px;font-size:12px;color:#888;">坐标: ' + lng.toFixed(4) + ', ' + lat.toFixed(4) + '</div>'
+              + '<div style="margin-top:6px;">'
+              +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
+              +     'background:' + color + ';vertical-align:middle;margin-right:6px;"></span>'
+              +   '<strong>Bortle ' + level + ' 级 · ' + label + '</strong>'
+              + '</div>'
+              + '<div style="font-size:11px;color:#999;margin-top:2px;">' + desc + '</div>'
+              + '<div style="font-size:10px;color:#666;margin-top:4px;">点击其他地方可重新放置标记</div>'
+              + '</div>',
+            offset: new AMap.Pixel(0, -46),
+            isCustom: true
+          });
+          clickInfoWin.open(map, [lng, lat]);
+
+          // 更新状态栏
+          statusText.textContent = '📍 ' + address;
+          mobLoc.textContent = label + ' · 标记点';
+          mobCoords.textContent = lng.toFixed(4) + ', ' + lat.toFixed(4);
+          mobBortle.textContent = 'Bortle ' + level;
+          mobBortle.style.background = color;
+          mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
+        });
+      });
+    });
 
     // ══════ 定位 ══════
     AMap.plugin('AMap.Geolocation', function() {
