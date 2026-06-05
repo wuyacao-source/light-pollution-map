@@ -671,8 +671,13 @@
     lightLayer = createLightLayer();
     lightLayer.setMap(map);
 
-    // 隐藏加载动画
-    setTimeout(() => loadingEl.classList.add('done'), 1000);
+    // 隐藏加载动画（地图 ready 事件 + 3秒兜底）
+    map.on('complete', function() {
+      loadingEl.classList.add('done');
+    });
+    setTimeout(function() {
+      loadingEl.classList.add('done');
+    }, 3000);
 
     // 初始化搜索
     initSearch();
