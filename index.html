@@ -71,7 +71,6 @@
 </div>
 
 <div class="ctrl">
-  <button class="active" id="btn-layer" title="光污染图层">🌙</button>
   <button id="btn-locate" title="定位">📍</button>
 </div>
 
@@ -334,7 +333,6 @@
   // ---- DOM ----
   var loadingEl = document.getElementById('loading');
   var statusText = document.getElementById('status-text');
-  var btnLayer = document.getElementById('btn-layer');
   var btnLocate = document.getElementById('btn-locate');
   var mobLoc = document.getElementById('mob-loc');
   var mobCoords = document.getElementById('mob-coords');
@@ -357,8 +355,6 @@
 
   // ---- 光污染图层已移除，用干净的高德暗色底图 ----
   // Bortle 等级通过点击/定位时基于本地城市数据计算显示
-  var lightLayerVisible = true;
-  var lightLayer = null; // 占位，保持兼容
 
   // 隐藏加载动画
   loadingEl.classList.add('hidden');
@@ -471,20 +467,6 @@
         });
       });
     });
-  });
-
-  // ---- Controls ----
-  btnLayer.addEventListener('click', function() {
-    if (lightLayerVisible) {
-      lightLayerVisible = false;
-      btnLayer.classList.remove('active');
-      alert('光污染热力图已移除，现在使用干净的底图。\n点击地图任意位置可查看该地点的 Bortle 等级。');
-    } else {
-      lightLayerVisible = true;
-      btnLayer.classList.add('active');
-      alert('当前使用干净底图模式，点击地图查看光污染等级。');
-    }
-    lightLayerVisible = !lightLayerVisible;
   });
 
   btnLocate.addEventListener('click', doLocate);
