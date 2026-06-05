@@ -197,8 +197,7 @@
   lightLayer.render = function() {
     var size = map.getSize();
     canvas.width = size.width; canvas.height = size.height;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     var zoom = map.getZoom();
     for (var i=0; i<CITY_VIIRS.length; i++) {
@@ -212,7 +211,7 @@
 
       var color = radianceToBortle(city.rad)[2];
       for (var j=4; j>=0; j--) {
-        var alpha = (0.11 + j*0.13) * 0.7;
+        var alpha = (0.04 + j*0.05) * 0.5;
         var r = radius * (0.25 + j*0.19);
         if (r < 0.3) continue;
         var grad = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, r);
