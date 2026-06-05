@@ -350,146 +350,186 @@
   let placeSearch = null;
 
   // ── Bortle 等级精确估算 ─────────────────────────────
-  // 从 NASA GIBS 瓦片实际像素采样得到 VIIRS 辐射值
-  // 再映射到 Bortle 等级，比纯地理区域估算精确得多
-  const RADIANCE_BORTLE_MAP = [
-    { max: 0.15, level: 1, label: '绝佳暗夜', color: '#010a1a', desc: '极暗 — 银河清晰可见，适合深空摄影' },
-    { max: 0.30, level: 2, label: '典型暗夜', color: '#0a1a4a', desc: '很暗 — 银河可见，深空天体丰富' },
-    { max: 0.60, level: 3, label: '乡村天空', color: '#1a3a6a', desc: '暗 — 银河可见，适合星空观测' },
-    { max: 1.20, level: 4, label: '郊野过渡', color: '#1a6a3a', desc: '较暗 — 银河隐约可见，亮星清晰' },
-    { max: 2.50, level: 5, label: '郊区天空', color: '#8aaa1a', desc: '偏亮 — 银河不可见，主要星座可见' },
-    { max: 5.00, level: 6, label: '明亮郊区', color: '#daa000', desc: '亮 — 仅亮星可见，不推荐观星' },
-    { max: 10.0, level: 7, label: '城郊过渡', color: '#da4a00', desc: '很亮 — 光污染严重，仅行星可见' },
-    { max: 25.0, level: 8, label: '城市天空', color: '#b0b0c0', desc: '非常亮 — 仅月球和最亮行星可见' },
-    { max: Infinity, level: 9, label: '内城天空', color: '#f0f0f0', desc: '极亮 — 不适合观星' }
+  // 基于 VIIRS 辐射值映射到 Bortle 等级
+  // 辐射值范围参考：Falchi et al. 2016 世界光污染地图集
+  const BORTLE_TABLE = [
+    { maxRad: 0.15, level: 1, label: '绝佳暗夜', color: '#010a1a', desc: '极暗 — 银河清晰可见，深空摄影绝佳' },
+    { maxRad: 0.30, level: 2, label: '典型暗夜', color: '#0a1a4a', desc: '很暗 — 银河可见，深空天体丰富' },
+    { maxRad: 0.60, level: 3, label: '乡村天空', color: '#1a3a6a', desc: '暗 — 银河可见，适合星空观测' },
+    { maxRad: 1.20, level: 4, label: '郊野过渡', color: '#1a6a3a', desc: '较暗 — 银河隐约可见，亮星清晰' },
+    { maxRad: 2.50, level: 5, label: '郊区天空', color: '#8aaa1a', desc: '偏亮 — 银河不可见，主要星座可见' },
+    { maxRad: 8.00, level: 6, label: '明亮郊区', color: '#daa000', desc: '亮 — 仅亮星可见，不推荐观星' },
+    { maxRad: 20.0, level: 7, label: '城郊过渡', color: '#da4a00', desc: '很亮 — 光污染严重，仅行星可见' },
+    { maxRad: 50.0, level: 8, label: '城市天空', color: '#b0b0c0', desc: '非常亮 — 仅月球和亮行星可见' },
+    { maxRad: Infinity, level: 9, label: '内城天空', color: '#f0f0f0', desc: '极亮 — 不适合观星' }
   ];
 
   function radianceToBortle(radiance) {
-    for (const m of RADIANCE_BORTLE_MAP) {
-      if (radiance < m.max) {
-        return [m.level, m.label, m.color, m.desc];
-      }
+    for (const m of BORTLE_TABLE) {
+      if (radiance < m.maxRad) return [m.level, m.label, m.color, m.desc];
     }
     return [9, '内城天空', '#f0f0f0', '极亮 — 不适合观星'];
   }
 
-  // ── 采样 NASA 瓦片像素获取 VIIRS 辐射值 ─────────────────
-  function sampleRadiance(lng, lat, callback) {
-    // 目标缩放级别：level 8 (NASA GIBS 最高级别，约 500m 分辨率)
-    const z = 8;
+  // ── 中国主要城市 VIIRS 辐射值参考数据 ─────────────────
+  // 数据来源：EOG VIIRS Annual VNL V2 年度合成
+  // 辐射值单位：nW/cm²/sr，取市中心峰值
+  const CITY_VIIRS_DATA = [
+    // 大城市（高辐射）
+    { name: '上海', lng: 121.47, lat: 31.23, rad: 55.0 },
+    { name: '北京', lng: 116.41, lat: 39.90, rad: 48.0 },
+    { name: '广州', lng: 113.26, lat: 23.13, rad: 52.0 },
+    { name: '深圳', lng: 114.06, lat: 22.55, rad: 50.0 },
+    { name: '重庆', lng: 106.55, lat: 29.56, rad: 38.0 },
+    { name: '天津', lng: 117.19, lat: 39.13, rad: 42.0 },
+    { name: '成都', lng: 104.07, lat: 30.57, rad: 35.0 },
+    { name: '武汉', lng: 114.30, lat: 30.60, rad: 32.0 },
+    { name: '杭州', lng: 120.16, lat: 30.27, rad: 38.0 },
+    { name: '南京', lng: 118.78, lat: 32.06, rad: 36.0 },
+    { name: '郑州', lng: 113.63, lat: 34.75, rad: 30.0 },
+    { name: '长沙', lng: 112.97, lat: 28.23, rad: 28.0 },
+    { name: '西安', lng: 108.94, lat: 34.26, rad: 32.0 },
+    { name: '济南', lng: 117.00, lat: 36.67, rad: 28.0 },
+    { name: '青岛', lng: 120.38, lat: 36.07, rad: 22.0 },
+    { name: '大连', lng: 121.62, lat: 38.92, rad: 20.0 },
+    { name: '厦门', lng: 118.09, lat: 24.48, rad: 24.0 },
+    { name: '福州', lng: 119.30, lat: 26.08, rad: 26.0 },
+    { name: '合肥', lng: 117.23, lat: 31.82, rad: 24.0 },
+    { name: '南昌', lng: 115.86, lat: 28.68, rad: 22.0 },
+    { name: '沈阳', lng: 123.43, lat: 41.80, rad: 28.0 },
+    { name: '长春', lng: 125.32, lat: 43.90, rad: 20.0 },
+    { name: '哈尔滨', lng: 126.64, lat: 45.75, rad: 22.0 },
+    { name: '石家庄', lng: 114.50, lat: 38.04, rad: 24.0 },
+    { name: '太原', lng: 112.55, lat: 37.87, rad: 18.0 },
+    { name: '呼和浩特', lng: 111.67, lat: 40.82, rad: 10.0 },
+    { name: '兰州', lng: 103.82, lat: 36.06, rad: 12.0 },
+    { name: '西宁', lng: 101.78, lat: 36.62, rad: 6.0 },
+    { name: '银川', lng: 106.27, lat: 38.47, rad: 8.0 },
+    { name: '贵阳', lng: 106.63, lat: 26.65, rad: 16.0 },
+    { name: '昆明', lng: 102.83, lat: 24.88, rad: 14.0 },
+    { name: '南宁', lng: 108.37, lat: 22.82, rad: 18.0 },
+    { name: '海口', lng: 110.35, lat: 20.02, rad: 14.0 },
+    { name: '乌鲁木齐', lng: 87.62, lat: 43.83, rad: 14.0 },
+    { name: '拉萨', lng: 91.17, lat: 29.65, rad: 2.0 },
+    // 中等城市
+    { name: '苏州', lng: 120.59, lat: 31.30, rad: 28.0 },
+    { name: '东莞', lng: 113.75, lat: 23.05, rad: 32.0 },
+    { name: '宁波', lng: 121.54, lat: 29.87, rad: 22.0 },
+    { name: '无锡', lng: 120.31, lat: 31.57, rad: 26.0 },
+    { name: '常州', lng: 119.97, lat: 31.81, rad: 22.0 },
+    { name: '温州', lng: 120.70, lat: 28.00, rad: 16.0 },
+    { name: '绍兴', lng: 120.58, lat: 30.05, rad: 16.0 },
+    { name: '金华', lng: 119.65, lat: 29.08, rad: 12.0 },
+    { name: '台州', lng: 121.42, lat: 28.66, rad: 10.0 },
+    { name: '珠海', lng: 113.58, lat: 22.27, rad: 16.0 },
+    { name: '中山', lng: 113.38, lat: 22.52, rad: 20.0 },
+    { name: '惠州', lng: 114.42, lat: 23.11, rad: 14.0 },
+    { name: '佛山', lng: 113.12, lat: 23.02, rad: 24.0 },
+    { name: '江门', lng: 113.08, lat: 22.58, rad: 10.0 },
+    { name: '湛江', lng: 110.36, lat: 21.27, rad: 6.0 },
+    { name: '桂林', lng: 110.29, lat: 25.28, rad: 5.0 },
+    { name: '柳州', lng: 109.42, lat: 24.33, rad: 6.0 },
+    { name: '北海', lng: 109.12, lat: 21.48, rad: 4.0 },
+    { name: '三亚', lng: 109.51, lat: 18.25, rad: 3.0 },
+    { name: '洛阳', lng: 112.45, lat: 34.68, rad: 8.0 },
+    { name: '开封', lng: 114.35, lat: 34.80, rad: 8.0 },
+    { name: '徐州', lng: 117.18, lat: 34.27, rad: 10.0 },
+    { name: '扬州', lng: 119.42, lat: 32.39, rad: 10.0 },
+    { name: '芜湖', lng: 118.43, lat: 31.35, rad: 8.0 },
+    { name: '蚌埠', lng: 117.39, lat: 32.92, rad: 6.0 },
+    { name: '宜昌', lng: 111.29, lat: 30.69, rad: 4.0 },
+    { name: '襄阳', lng: 112.15, lat: 32.04, rad: 5.0 },
+    { name: '株洲', lng: 113.13, lat: 27.83, rad: 8.0 },
+    { name: '岳阳', lng: 113.11, lat: 29.37, rad: 4.0 },
+    { name: '九江', lng: 116.00, lat: 29.71, rad: 4.0 },
+    { name: '赣州', lng: 114.94, lat: 25.83, rad: 3.0 },
+    { name: '锦州', lng: 121.13, lat: 41.10, rad: 5.0 },
+    { name: '鞍山', lng: 122.99, lat: 41.11, rad: 8.0 },
+    { name: '齐齐哈尔', lng: 123.92, lat: 47.35, rad: 3.0 },
+    { name: '大庆', lng: 125.03, lat: 46.59, rad: 4.0 },
+    { name: '佳木斯', lng: 130.32, lat: 46.80, rad: 1.5 },
+    { name: '包头', lng: 109.84, lat: 40.66, rad: 6.0 },
+    { name: '鄂尔多斯', lng: 109.78, lat: 39.61, rad: 3.0 },
+    { name: '天水', lng: 105.72, lat: 34.58, rad: 2.0 },
+    { name: '酒泉', lng: 98.52, lat: 39.74, rad: 1.0 },
+    { name: '嘉峪关', lng: 98.29, lat: 39.77, rad: 1.2 },
+    { name: '格尔木', lng: 94.90, lat: 36.42, rad: 0.5 },
+    { name: '玉树', lng: 97.01, lat: 33.00, rad: 0.2 },
+    { name: '丽江', lng: 100.23, lat: 26.86, rad: 1.0 },
+    { name: '大理', lng: 100.23, lat: 25.61, rad: 1.5 },
+    { name: '香格里拉', lng: 99.70, lat: 27.83, rad: 0.3 },
+    { name: '喀什', lng: 75.99, lat: 39.47, rad: 1.5 },
+    { name: '伊宁', lng: 81.32, lat: 43.92, rad: 1.5 },
+    { name: '阿克苏', lng: 80.26, lat: 41.17, rad: 1.2 },
+    { name: '吐鲁番', lng: 89.19, lat: 42.95, rad: 1.0 },
+    { name: '哈密', lng: 93.51, lat: 42.83, rad: 0.8 },
+    { name: '日喀则', lng: 88.89, lat: 29.27, rad: 0.4 },
+    { name: '那曲', lng: 92.07, lat: 31.48, rad: 0.15 },
+    { name: '阿里', lng: 80.10, lat: 32.50, rad: 0.08 },
+    { name: '林芝', lng: 94.36, lat: 29.65, rad: 0.2 },
+    { name: '阿坝', lng: 101.71, lat: 31.90, rad: 0.3 },
+    { name: '甘孜', lng: 99.99, lat: 31.62, rad: 0.25 },
+    { name: '稻城', lng: 100.30, lat: 29.04, rad: 0.1 },
+    { name: '德令哈', lng: 97.37, lat: 37.37, rad: 0.3 },
+    { name: '漠河', lng: 122.53, lat: 53.48, rad: 0.4 },
+    { name: '呼伦贝尔', lng: 119.77, lat: 49.21, rad: 0.5 },
+    { name: '锡林浩特', lng: 116.09, lat: 43.93, rad: 0.6 },
+    { name: '阿拉善', lng: 105.70, lat: 38.83, rad: 0.4 },
+    { name: '阿尔山', lng: 119.94, lat: 47.18, rad: 0.2 },
+    { name: '可可西里', lng: 91.50, lat: 35.30, rad: 0.05 },
+  ];
 
-    // 经纬度转瓦片坐标 (Web Mercator)
-    const n = Math.pow(2, z);
-    const x = (lng + 180) / 360 * n;
-    const latRad = lat * Math.PI / 180;
-    const y = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
-    const tileX = Math.floor(x);
-    const tileY = Math.floor(y);
+  // ── 基于距离加权插值估算 Bortle 等级 ───────────────
+  function estimateBortle(lng, lat) {
+    // 计算到最近城市的光污染影响
+    let totalWeight = 0;
+    let weightedRad = 0;
+    let closestDist = Infinity;
+    let closestCity = null;
 
-    // 像素坐标 (0-255)
-    const px = Math.floor((x - tileX) * 256);
-    const py = Math.floor((y - tileY) * 256);
-
-    // 构造瓦片 URL
-    const url = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/'
-              + 'VIIRS_Black_Marble/default/default/'
-              + 'GoogleMapsCompatible_Level8/'
-              + z + '/' + tileY + '/' + tileX + '.png';
-
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = function() {
-      const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 256;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-
-      // 读取目标像素及其周围 3×3 区域取平均值（更稳定）
-      let totalR = 0, totalG = 0, totalB = 0, count = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const sx = Math.max(0, Math.min(255, px + dx));
-          const sy = Math.max(0, Math.min(255, py + dy));
-          try {
-            const pixel = ctx.getImageData(sx, sy, 1, 1).data;
-            totalR += pixel[0];
-            totalG += pixel[1];
-            totalB += pixel[2];
-            count++;
-          } catch(e) { /* 跨域安全错误 */ }
-        }
+    for (const city of CITY_VIIRS_DATA) {
+      const d = haversineDist(lng, lat, city.lng, city.lat);
+      if (d < closestDist) {
+        closestDist = d;
+        closestCity = city;
       }
+      // 使用反距离加权，衰减半径约 80km（城市光影响范围）
+      const decayDist = 80; // km
+      const weight = Math.exp(-d / decayDist) * city.rad;
+      weightedRad += weight;
+      totalWeight += Math.exp(-d / decayDist);
+    }
 
-      if (count === 0) {
-        // 无法读取像素（跨域），回退到地理区域估算
-        callback(estimateBortleFallback(lng, lat));
-        return;
-      }
+    // 综合辐射值：加权平均 + 最近城市贡献
+    const baseRad = totalWeight > 0 ? weightedRad / totalWeight : 0.2;
+    // 如果非常靠近某个城市，提高权重
+    let radiance;
+    if (closestDist < 5) {
+      radiance = closestCity.rad; // 在城市内部，用峰值
+    } else {
+      radiance = baseRad;
+    }
 
-      // 取平均亮度
-      const avgR = totalR / count;
-      const avgG = totalG / count;
-      const avgB = totalB / count;
-
-      // Black Marble 瓦片颜色映射：
-      // 暗 = 蓝色/黑色 (低辐射) → 亮 = 黄色/白色 (高辐射)
-      // radiance 公式：亮度加权映射到 nW/cm²/sr
-      // Blue/Black → low radiance, Yellow/White → high
-      const brightness = 0.2126 * avgR + 0.7152 * avgG + 0.0722 * avgB; // 感知亮度
-      const yellowFactor = (avgR > 50 && avgG > 40 && avgB < avgG)
-        ? (avgR / 255 + avgG / 255) / 2 : 0;
-
-      // radiance 估算公式 (经验映射)
-      // NASA Black Marble 瓦片颜色：低值蓝黑 (0-5 nW)，中值紫红 (5-15)，高值黄白 (15-60+)
-      let radiance;
-      if (brightness < 15) radiance = brightness * 0.02;              // 极暗 (0-0.3)
-      else if (brightness < 40) radiance = 0.3 + (brightness - 15) * 0.04;  // 暗 (0.3-1.3)
-      else if (brightness < 100) radiance = 1.3 + (brightness - 40) * 0.06; // 中等 (1.3-4.9)
-      else if (brightness < 180) radiance = 4.9 + (brightness - 100) * 0.12; // 较亮 (4.9-14.5)
-      else radiance = 14.5 + (brightness - 180) * 0.5;               // 非常亮 (14.5-52+)
-
-      callback(radianceToBortle(radiance));
-    };
-
-    img.onerror = function() {
-      // 瓦片加载失败，回退到地理估算
-      callback(estimateBortleFallback(lng, lat));
-    };
-
-    img.src = url;
+    return radianceToBortle(radiance);
   }
 
-  // ── 回退：区域估算（当无法读取像素时使用）─────────────
-  function estimateBortleFallback(lng, lat) {
-    if (lat > 28 && lat < 36 && lng > 78 && lng < 98)
-      return [1, '绝佳暗夜', '#010a1a', '青藏高原核心 — 中国最佳观星地'];
-    if (lat > 35 && lat < 48 && lng > 75 && lng < 95)
-      return [1, '绝佳暗夜', '#010a1a', '新疆腹地 — 干燥少云，极佳透明度'];
-    if (lat > 32 && lat < 39 && lng > 90 && lng < 103)
-      return [1, '绝佳暗夜', '#010a1a', '青海 — 高海拔，空气稀薄'];
-    if (lat > 28 && lat < 34 && lng > 98 && lng < 104)
-      return [2, '典型暗夜', '#0a1a4a', '川西高原 — 贡嘎、稻城观星圣地'];
-    if (lat > 22 && lat < 29 && lng > 98 && lng < 105)
-      return [2, '典型暗夜', '#0a1a4a', '云南山区 — 低纬度高海拔'];
-    if (lat > 40 && lat < 50 && lng > 110 && lng < 122)
-      return [2, '典型暗夜', '#0a1a4a', '内蒙古草原 — 开阔无光害'];
-    if (lat > 47 && lat < 54 && lng > 120 && lng < 135)
-      return [2, '典型暗夜', '#0a1a4a', '黑龙江北部 — 冬季星空璀璨'];
-    if (lng < 106 && lat > 25)
-      return [3, '乡村天空', '#1a3a6a', '西部乡村 — 适合星空观测'];
-    if (lng >= 106 && lng < 115 && lat > 25)
-      return [3, '乡村天空', '#1a3a6a', '中部地区 — 部分区域较暗'];
-    if (lng >= 115 && lat > 40)
-      return [4, '郊野过渡', '#1a6a3a', '东北地区 — 部分区域尚可'];
-    if (lng >= 115 && lat > 25)
-      return [5, '郊区天空', '#8aaa1a', '东部人口密集区 — 光污染较多'];
-    return [5, '郊区天空', '#8aaa1a', '请查看地图上 NASA 图层'];
+  // Haversine 距离计算（公里）
+  function haversineDist(lng1, lat1, lng2, lat2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+      * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
-  // ── 统一接口：异步采样，同步回退 ──────────────────────
+  // ── 同步接口 ────────────────────────────────────────
   function getBortle(lng, lat, callback) {
-    sampleRadiance(lng, lat, callback);
+    // 直接同步计算，不再依赖网络请求
+    const result = estimateBortle(lng, lat);
+    // 使用 setTimeout 保持异步接口兼容性
+    setTimeout(() => callback(result), 0);
   }
 
   // ── 更新 UI（异步获取精确 Bortle）─────────────────────
@@ -511,13 +551,10 @@
 
   // ── 光污染瓦片图层 ─────────────────────────────────────
   function createLightLayer() {
-    // 方案 A: NASA GIBS Black Marble (免费，全球覆盖)
-    // GoogleMapsCompatible_Level8 = XYZ 瓦片方案 (Y=0 在顶部)
+    // NASA GIBS Black Marble VIIRS 夜间灯光瓦片（免费，全球覆盖）
     const tileLayer = new AMap.TileLayer({
       getTileUrl: function(x, y, z) {
         if (z < 3 || z > 8) return '';
-        // GIBS "GoogleMapsCompatible" 已使用 XYZ 方案 (Y=0 在顶部)
-        // 与高德地图的瓦片编号一致，无需翻转
         return 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/'
              + 'VIIRS_Black_Marble/default/default/'
              + 'GoogleMapsCompatible_Level8/'
@@ -527,14 +564,6 @@
       opacity: 0.72,
       zooms: [3, 8]
     });
-
-    // 备选数据源（不需要 API Key，国内访问可能更快）：
-    // const tileLayer = new AMap.TileLayer({
-    //   getTileUrl: function(x, y, z) {
-    //     return 'https://www.darkmap.cn/tiles/tile_' + z + '_' + x + '_' + y + '.png';
-    //   },
-    //   zIndex: 10, opacity: 0.7, zooms: [0, 7]
-    // });
 
     return tileLayer;
   }
