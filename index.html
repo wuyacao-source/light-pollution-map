@@ -19,6 +19,17 @@
   #legend h3 { font-size:13px; color:#fff; margin-bottom:10px; }
   .legend-item { display:flex; align-items:center; gap:8px; margin-bottom:5px; font-size:11px; color:#7a7a8c; }
   .legend-swatch { width:24px; height:12px; border-radius:3px; flex-shrink:0; }
+  /* Search */
+  #search-box { position:absolute; top:120px; left:16px; z-index:100; width:300px; }
+  .search-inner { display:flex; align-items:center; background:rgba(10,10,20,0.92); border:1px solid rgba(255,255,255,0.08); border-radius:12px; overflow:hidden; transition:border-color 0.2s; backdrop-filter:blur(14px); }
+  .search-inner:focus-within { border-color:#4a90d9; box-shadow:0 0 0 2px rgba(74,144,217,0.2); }
+  #search-input { flex:1; background:none; border:none; outline:none; color:#fff; font-size:14px; padding:11px 14px; font-family:inherit; min-width:0; }
+  #search-input::placeholder { color:#7a7a8c; }
+  .search-icon, #search-clear { flex-shrink:0; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#7a7a8c; font-size:16px; background:none; border:none; }
+  .search-icon:hover, #search-clear:hover { color:#fff; }
+  #search-clear { display:none; }
+  #search-clear.show { display:flex; }
+
   .ctrl { position:absolute; top:16px; right:16px; z-index:100; display:flex; flex-direction:column; gap:8px; }
   .ctrl button { width:42px; height:42px; border-radius:10px; background:rgba(10,10,20,0.92); border:1px solid rgba(255,255,255,0.08); color:#fff; font-size:18px; cursor:pointer; backdrop-filter:blur(14px); transition:all 0.2s; }
   .ctrl button:hover { background:rgba(255,255,255,0.12); }
@@ -27,6 +38,7 @@
   @media (max-width:640px) {
     #status { top:8px; left:8px; right:60px; max-width:none; padding:10px 14px; }
     #status h1 { font-size:15px; }
+    #search-box { top:88px; left:8px; right:8px; width:auto; }
     #legend { bottom:62px; right:8px; padding:10px 12px; min-width:145px; }
     .ctrl { top:8px; right:8px; gap:6px; }
     .ctrl button { width:36px; height:36px; font-size:16px; }
@@ -37,7 +49,17 @@
 
 <div id="map"></div>
 
+<!-- Loading -->
 <div id="loading"><div class="spinner"></div><div style="font-size:13px;color:#7a7a8c">正在加载星图...</div></div>
+
+<!-- Search -->
+<div id="search-box">
+  <div class="search-inner">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="搜索地点，查看光污染等级..." autocomplete="off">
+    <button id="search-clear" title="清除">✕</button>
+  </div>
+</div>
 
 <div id="status">
   <h1>🌌 光污染观星地图</h1>
@@ -73,7 +95,7 @@
 <script>
   window._AMapSecurityConfig = { securityJsCode: '6b11a45456ab152ef39d6102bf17c64b' };
 </script>
-<script src="https://webapi.amap.com/maps?v=2.0&key=7fa2938b063c0fa7ca09c840ead945cf&plugin=AMap.Geolocation,AMap.Scale,AMap.ToolBar"></script>
+<script src="https://webapi.amap.com/maps?v=2.0&key=7fa2938b063c0fa7ca09c840ead945cf&plugin=AMap.Geolocation,AMap.Scale,AMap.ToolBar,AMap.AutoComplete,AMap.PlaceSearch"></script>
 
 <script>
 (function() {
@@ -173,6 +195,8 @@
   var mobLoc = document.getElementById('mob-loc');
   var mobCoords = document.getElementById('mob-coords');
   var mobBortle = document.getElementById('mob-bortle');
+  var searchInput = document.getElementById('search-input');
+  var searchClear = document.getElementById('search-clear');
 
   // ---- Map Init ----
   var map = new AMap.Map('map', {
@@ -191,6 +215,9 @@
   // Bortle 等级通过点击/定位时基于本地城市数据计算显示
   var lightLayerVisible = true;
   var lightLayer = null; // 占位，保持兼容
+
+  // 隐藏加载动画
+  loadingEl.classList.add('hidden');
   statusText.textContent = '✅ 地图已就绪，点击地图查看光污染等级...';
 
   // ---- Geolocation ----
@@ -298,6 +325,65 @@
   });
 
   btnLocate.addEventListener('click', doLocate);
+
+  // ---- 搜索功能 ----
+  var autoComplete = null, placeSearch = null;
+
+  function showSearchResult(lng, lat, name, addr) {
+    map.setZoomAndCenter(13, [lng, lat]);
+    if (clickMarker) { map.remove(clickMarker); clickMarker=null; }
+    if (clickInfoWin) { map.remove(clickInfoWin); clickInfoWin=null; }
+    clickMarker = new AMap.Marker({
+      position:[lng,lat],
+      icon: new AMap.Icon({ size:new AMap.Size(28,42), image:'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png', imageSize:new AMap.Size(28,42), imageOffset:new AMap.Pixel(0,0) }),
+      anchor:'bottom-center', zIndex:110
+    });
+    map.add(clickMarker);
+    getBortle(lng, lat, function(b) {
+      clickInfoWin = new AMap.InfoWindow({
+        content: '<div style="color:#ccc;line-height:1.9;font-size:13px;"><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">'+name+'</div><div style="font-size:11px;color:#999;">'+addr+'</div><div style="margin-top:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:'+b[2]+';vertical-align:middle;margin-right:6px;"></span><strong>Bortle '+b[0]+' 级 · '+b[1]+'</strong></div><div style="font-size:11px;color:#999;margin-top:2px;">'+b[3]+'</div></div>',
+        offset:new AMap.Pixel(0,-42), isCustom:true
+      });
+      clickInfoWin.open(map,[lng,lat]);
+      updateUI(lng, lat, addr, b);
+    });
+  }
+
+  AMap.plugin('AMap.AutoComplete', function() {
+    autoComplete = new AMap.AutoComplete({ input:'search-input', city:'全国', citylimit:false });
+    autoComplete.on('select', function(e) {
+      if (e.poi && e.poi.location) {
+        showSearchResult(e.poi.location.lng, e.poi.location.lat, e.poi.name, e.poi.district+(e.poi.address||''));
+      }
+    });
+  });
+
+  AMap.plugin('AMap.PlaceSearch', function() {
+    placeSearch = new AMap.PlaceSearch({ pageSize:5, city:'全国', citylimit:false, extensions:'base' });
+  });
+
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { searchInput.blur(); searchInput.value=''; searchClear.classList.remove('show'); return; }
+    if (e.key === 'Enter') {
+      var kw = searchInput.value.trim();
+      if (!kw || !placeSearch) return;
+      placeSearch.search(kw, function(status, result) {
+        if (status==='complete' && result.poiList && result.poiList.pois.length>0) {
+          var p = result.poiList.pois[0];
+          if (p.location) showSearchResult(p.location.lng, p.location.lat, p.name, p.pname+p.cityname+p.adname+(p.address||''));
+        } else { statusText.textContent = '⚠️ 未找到: '+kw; }
+      });
+    }
+  });
+
+  searchInput.addEventListener('input', function() {
+    if (searchInput.value) searchClear.classList.add('show');
+    else searchClear.classList.remove('show');
+  });
+
+  searchClear.addEventListener('click', function() {
+    searchInput.value=''; searchClear.classList.remove('show'); searchInput.focus();
+  });
 
   // ---- Mobile responsive ----
   if (window.innerWidth <= 640) {
