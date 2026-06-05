@@ -12,9 +12,9 @@
   #loading.hidden { opacity:0; pointer-events:none; }
   .spinner { width:32px; height:32px; border:3px solid rgba(255,255,255,0.1); border-top-color:#4a90d9; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  #status { position:absolute; top:16px; left:16px; z-index:100; background:rgba(10,10,20,0.92); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px 18px; max-width:300px; backdrop-filter:blur(14px); }
-  #status h1 { font-size:18px; color:#fff; }
-  #status .info { font-size:12px; color:#7a7a8c; margin-top:4px; }
+  #status { position:absolute; top:16px; left:16px; z-index:100; background:rgba(6,8,14,0.9); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:14px 18px; max-width:300px; display:none; } /* 面板默认隐藏，定位/点击后可用 JS 展示 */
+  #status h1 { font-size:18px; color:rgba(255,255,255,0.6); }
+  #status .info { font-size:12px; color:rgba(255,255,255,0.25); margin-top:4px; }
   /* InfoWindow toast */
   .amap-info-content { background:rgba(10,10,20,0.94) !important; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.12) !important; border-radius:12px !important; color:#c8c8d4 !important; padding:12px 16px !important; font-size:13px; line-height:1.9; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
   .amap-info-sharp { border-top-color:rgba(10,10,20,0.94) !important; }
@@ -398,7 +398,16 @@
         getBortle(lng, lat, function(bortle) {
           var level=bortle[0],label=bortle[1],color=bortle[2],desc=bortle[3];
           userInfoWin = new AMap.InfoWindow({
-            content: '<div style="color:#ccc;line-height:1.9;font-size:13px;"><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 你的位置</div><div>'+addr+'</div><div style="margin-top:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:'+color+';vertical-align:middle;margin-right:6px;"></span><strong>Bortle '+level+' 级 · '+label+'</strong></div><div style="font-size:11px;color:#999;margin-top:2px;">'+desc+'</div></div>',
+            content: '<div style="color:#ccc;font-size:13px;background:rgba(8,10,18,0.93);padding:14px 16px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);line-height:1.9;max-width:280px;pointer-events:none;">'
+          + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 你的位置</div>'
+          + '<div style="font-size:12px;color:#999;">'+addr+'</div>'
+          + '<div style="margin-top:6px;">'
+          +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
+          +     'background:'+color+';vertical-align:middle;margin-right:6px;"></span>'
+          +   '<strong>Bortle '+level+' 级 · '+label+'</strong>'
+          + '</div>'
+          + '<div style="font-size:11px;color:#999;margin-top:2px;">'+desc+'</div>'
+          + '</div>',
             offset:new AMap.Pixel(0,-48), isCustom:true
           });
           userInfoWin.open(map,[lng,lat]);
@@ -444,7 +453,17 @@
         getBortle(lng, lat, function(bortle) {
           var level=bortle[0],label=bortle[1],color=bortle[2],desc=bortle[3];
           clickInfoWin = new AMap.InfoWindow({
-            content: '<div style="color:#ccc;line-height:1.9;font-size:13px;max-width:260px;"><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 标记点</div><div style="font-size:11px;color:#999;">'+addr+'</div><div style="margin-top:6px;font-size:12px;color:#888;">坐标: '+lng.toFixed(4)+', '+lat.toFixed(4)+'</div><div style="margin-top:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:'+color+';vertical-align:middle;margin-right:6px;"></span><strong>Bortle '+level+' 级 · '+label+'</strong></div><div style="font-size:11px;color:#999;margin-top:2px;">'+desc+'</div></div>',
+            content: '<div style="color:#ccc;font-size:13px;background:rgba(8,10,18,0.93);padding:14px 16px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);line-height:1.9;max-width:280px;pointer-events:none;">'
+          + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 标记点</div>'
+          + '<div style="font-size:12px;color:#999;">'+addr+'</div>'
+          + '<div style="margin-top:6px;font-size:11px;color:#777;">坐标: '+lng.toFixed(4)+', '+lat.toFixed(4)+'</div>'
+          + '<div style="margin-top:6px;">'
+          +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
+          +     'background:'+color+';vertical-align:middle;margin-right:6px;"></span>'
+          +   '<strong>Bortle '+level+' 级 · '+label+'</strong>'
+          + '</div>'
+          + '<div style="font-size:11px;color:#999;margin-top:2px;">'+desc+'</div>'
+          + '</div>',
             offset:new AMap.Pixel(0,-46), isCustom:true
           });
           clickInfoWin.open(map,[lng,lat]);
@@ -485,7 +504,16 @@
     map.add(clickMarker);
     getBortle(lng, lat, function(b) {
       clickInfoWin = new AMap.InfoWindow({
-        content: '<div style="color:#ccc;line-height:1.9;font-size:13px;"><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">'+name+'</div><div style="font-size:11px;color:#999;">'+addr+'</div><div style="margin-top:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:'+b[2]+';vertical-align:middle;margin-right:6px;"></span><strong>Bortle '+b[0]+' 级 · '+b[1]+'</strong></div><div style="font-size:11px;color:#999;margin-top:2px;">'+b[3]+'</div></div>',
+        content: '<div style="color:#ccc;font-size:13px;background:rgba(8,10,18,0.93);padding:14px 16px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);line-height:1.9;max-width:280px;pointer-events:none;">'
+          + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">'+name+'</div>'
+          + '<div style="font-size:12px;color:#999;">'+addr+'</div>'
+          + '<div style="margin-top:6px;">'
+          +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
+          +     'background:'+b[2]+';vertical-align:middle;margin-right:6px;"></span>'
+          +   '<strong>Bortle '+b[0]+' 级 · '+b[1]+'</strong>'
+          + '</div>'
+          + '<div style="font-size:11px;color:#999;margin-top:2px;">'+b[3]+'</div>'
+          + '</div>',
         offset:new AMap.Pixel(0,-42), isCustom:true
       });
       clickInfoWin.open(map,[lng,lat]);
