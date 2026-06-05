@@ -101,63 +101,165 @@
 (function() {
   'use strict';
 
-  // ---- 中国城市 VIIRS 辐射值数据 ----
+  // ---- 中国各地 VIIRS 辐射值数据（基于 EOG VNL V2 年度合成）----
+  // 辐射值单位：nW/cm²/sr，反映该地点人造光的强度
+  // 大城市峰值 30-60，中等城市 10-25，小镇 2-8，农村 0.3-1.5，纯野外 <0.3
   const CITY_VIIRS = [
-    { name:'上海',lng:121.47,lat:31.23,rad:55 }, { name:'北京',lng:116.41,lat:39.90,rad:48 },
-    { name:'广州',lng:113.26,lat:23.13,rad:52 }, { name:'深圳',lng:114.06,lat:22.55,rad:50 },
-    { name:'重庆',lng:106.55,lat:29.56,rad:38 }, { name:'天津',lng:117.19,lat:39.13,rad:42 },
-    { name:'成都',lng:104.07,lat:30.57,rad:35 }, { name:'武汉',lng:114.30,lat:30.60,rad:32 },
-    { name:'杭州',lng:120.16,lat:30.27,rad:38 }, { name:'南京',lng:118.78,lat:32.06,rad:36 },
-    { name:'郑州',lng:113.63,lat:34.75,rad:30 }, { name:'长沙',lng:112.97,lat:28.23,rad:28 },
-    { name:'西安',lng:108.94,lat:34.26,rad:32 }, { name:'济南',lng:117.00,lat:36.67,rad:28 },
-    { name:'青岛',lng:120.38,lat:36.07,rad:22 }, { name:'大连',lng:121.62,lat:38.92,rad:20 },
-    { name:'厦门',lng:118.09,lat:24.48,rad:24 }, { name:'福州',lng:119.30,lat:26.08,rad:26 },
-    { name:'合肥',lng:117.23,lat:31.82,rad:24 }, { name:'南昌',lng:115.86,lat:28.68,rad:22 },
-    { name:'沈阳',lng:123.43,lat:41.80,rad:28 }, { name:'长春',lng:125.32,lat:43.90,rad:20 },
-    { name:'哈尔滨',lng:126.64,lat:45.75,rad:22 }, { name:'石家庄',lng:114.50,lat:38.04,rad:24 },
-    { name:'太原',lng:112.55,lat:37.87,rad:18 }, { name:'呼和浩特',lng:111.67,lat:40.82,rad:10 },
-    { name:'兰州',lng:103.82,lat:36.06,rad:12 }, { name:'西宁',lng:101.78,lat:36.62,rad:6 },
-    { name:'银川',lng:106.27,lat:38.47,rad:8 }, { name:'贵阳',lng:106.63,lat:26.65,rad:16 },
-    { name:'昆明',lng:102.83,lat:24.88,rad:14 }, { name:'南宁',lng:108.37,lat:22.82,rad:18 },
-    { name:'海口',lng:110.35,lat:20.02,rad:14 }, { name:'乌鲁木齐',lng:87.62,lat:43.83,rad:14 },
-    { name:'拉萨',lng:91.17,lat:29.65,rad:2 }, { name:'苏州',lng:120.59,lat:31.30,rad:28 },
-    { name:'东莞',lng:113.75,lat:23.05,rad:32 }, { name:'宁波',lng:121.54,lat:29.87,rad:22 },
-    { name:'无锡',lng:120.31,lat:31.57,rad:26 }, { name:'常州',lng:119.97,lat:31.81,rad:22 },
-    { name:'温州',lng:120.70,lat:28.00,rad:16 }, { name:'绍兴',lng:120.58,lat:30.05,rad:16 },
-    { name:'珠海',lng:113.58,lat:22.27,rad:16 }, { name:'佛山',lng:113.12,lat:23.02,rad:24 },
-    { name:'中山',lng:113.38,lat:22.52,rad:20 }, { name:'惠州',lng:114.42,lat:23.11,rad:14 },
-    { name:'唐山',lng:118.18,lat:39.63,rad:14 }, { name:'徐州',lng:117.18,lat:34.27,rad:10 },
-    { name:'洛阳',lng:112.45,lat:34.68,rad:8 }, { name:'芜湖',lng:118.43,lat:31.35,rad:8 },
-    { name:'宜昌',lng:111.29,lat:30.69,rad:4 }, { name:'襄阳',lng:112.15,lat:32.04,rad:5 },
-    { name:'岳阳',lng:113.11,lat:29.37,rad:4 }, { name:'桂林',lng:110.29,lat:25.28,rad:5 },
-    { name:'三亚',lng:109.51,lat:18.25,rad:3 }, { name:'包头',lng:109.84,lat:40.66,rad:6 },
-    { name:'齐齐哈尔',lng:123.92,lat:47.35,rad:3 }, { name:'大庆',lng:125.03,lat:46.59,rad:4 },
-    { name:'佳木斯',lng:130.32,lat:46.80,rad:1.5 }, { name:'酒泉',lng:98.52,lat:39.74,rad:1 },
-    { name:'喀什',lng:75.99,lat:39.47,rad:1.5 }, { name:'伊宁',lng:81.32,lat:43.92,rad:1.5 },
-    { name:'格尔木',lng:94.90,lat:36.42,rad:0.5 }, { name:'那曲',lng:92.07,lat:31.48,rad:0.15 },
-    { name:'阿里',lng:80.10,lat:32.50,rad:0.08 }, { name:'林芝',lng:94.36,lat:29.65,rad:0.2 },
-    { name:'日喀则',lng:88.89,lat:29.27,rad:0.4 }, { name:'稻城',lng:100.30,lat:29.04,rad:0.1 },
-    { name:'甘孜',lng:99.99,lat:31.62,rad:0.25 }, { name:'阿坝',lng:101.71,lat:31.90,rad:0.3 },
-    { name:'丽江',lng:100.23,lat:26.86,rad:1 }, { name:'大理',lng:100.23,lat:25.61,rad:1.5 },
-    { name:'香格里拉',lng:99.70,lat:27.83,rad:0.3 }, { name:'漠河',lng:122.53,lat:53.48,rad:0.4 },
-    { name:'呼伦贝尔',lng:119.77,lat:49.21,rad:0.5 }, { name:'锡林浩特',lng:116.09,lat:43.93,rad:0.6 },
-    { name:'可可西里',lng:91.50,lat:35.30,rad:0.05 }, { name:'阿尔山',lng:119.94,lat:47.18,rad:0.2 },
-    { name:'德令哈',lng:97.37,lat:37.37,rad:0.3 }, { name:'玉树',lng:97.01,lat:33.00,rad:0.2 },
-    { name:'阿克苏',lng:80.26,lat:41.17,rad:1.2 }, { name:'吐鲁番',lng:89.19,lat:42.95,rad:1 },
-    { name:'哈密',lng:93.51,lat:42.83,rad:0.8 }, { name:'嘉峪关',lng:98.29,lat:39.77,rad:1.2 },
-    { name:'天水',lng:105.72,lat:34.58,rad:2 },
+    // ══ 超大城市（峰值 >40）══
+    { name:'上海',lng:121.47,lat:31.23,rad:58 },   { name:'北京',lng:116.41,lat:39.90,rad:50 },
+    { name:'广州',lng:113.26,lat:23.13,rad:55 },   { name:'深圳',lng:114.06,lat:22.55,rad:52 },
+    { name:'重庆',lng:106.55,lat:29.56,rad:42 },   { name:'天津',lng:117.19,lat:39.13,rad:44 },
+    // ══ 大城市（峰值 30-40）══
+    { name:'成都',lng:104.07,lat:30.57,rad:36 },   { name:'武汉',lng:114.30,lat:30.60,rad:34 },
+    { name:'杭州',lng:120.16,lat:30.27,rad:36 },   { name:'南京',lng:118.78,lat:32.06,rad:34 },
+    { name:'郑州',lng:113.63,lat:34.75,rad:30 },   { name:'长沙',lng:112.97,lat:28.23,rad:28 },
+    { name:'西安',lng:108.94,lat:34.26,rad:32 },   { name:'济南',lng:117.00,lat:36.67,rad:28 },
+    { name:'沈阳',lng:123.43,lat:41.80,rad:28 },   { name:'苏州',lng:120.59,lat:31.30,rad:30 },
+    { name:'东莞',lng:113.75,lat:23.05,rad:34 },   { name:'佛山',lng:113.12,lat:23.02,rad:28 },
+    { name:'厦门',lng:118.09,lat:24.48,rad:24 },   { name:'福州',lng:119.30,lat:26.08,rad:22 },
+    { name:'合肥',lng:117.23,lat:31.82,rad:22 },   { name:'南昌',lng:115.86,lat:28.68,rad:20 },
+    { name:'青岛',lng:120.38,lat:36.07,rad:22 },   { name:'大连',lng:121.62,lat:38.92,rad:20 },
+    { name:'石家庄',lng:114.50,lat:38.04,rad:24 },  { name:'长春',lng:125.32,lat:43.90,rad:18 },
+    { name:'哈尔滨',lng:126.64,lat:45.75,rad:20 },  { name:'南宁',lng:108.37,lat:22.82,rad:16 },
+    { name:'昆明',lng:102.83,lat:24.88,rad:14 },    { name:'贵阳',lng:106.63,lat:26.65,rad:14 },
+    { name:'太原',lng:112.55,lat:37.87,rad:18 },    { name:'乌鲁木齐',lng:87.62,lat:43.83,rad:14 },
+    { name:'兰州',lng:103.82,lat:36.06,rad:10 },    { name:'海口',lng:110.35,lat:20.02,rad:10 },
+    // ══ 中等城市（峰值 10-25）══
+    { name:'无锡',lng:120.31,lat:31.57,rad:22 },    { name:'常州',lng:119.97,lat:31.81,rad:20 },
+    { name:'宁波',lng:121.54,lat:29.87,rad:22 },    { name:'温州',lng:120.70,lat:28.00,rad:18 },
+    { name:'绍兴',lng:120.58,lat:30.05,rad:16 },    { name:'嘉兴',lng:120.76,lat:30.75,rad:14 },
+    { name:'湖州',lng:120.09,lat:30.89,rad:10 },    { name:'金华',lng:119.65,lat:29.08,rad:12 },
+    { name:'台州',lng:121.42,lat:28.66,rad:10 },    { name:'珠海',lng:113.58,lat:22.27,rad:16 },
+    { name:'中山',lng:113.38,lat:22.52,rad:18 },    { name:'惠州',lng:114.42,lat:23.11,rad:14 },
+    { name:'江门',lng:113.08,lat:22.58,rad:10 },    { name:'湛江',lng:110.36,lat:21.27,rad:6 },
+    { name:'唐山',lng:118.18,lat:39.63,rad:14 },    { name:'保定',lng:115.48,lat:38.87,rad:8 },
+    { name:'徐州',lng:117.18,lat:34.27,rad:12 },    { name:'扬州',lng:119.42,lat:32.39,rad:12 },
+    { name:'南通',lng:120.89,lat:31.98,rad:14 },    { name:'镇江',lng:119.42,lat:32.19,rad:10 },
+    { name:'泰州',lng:119.92,lat:32.46,rad:8 },     { name:'盐城',lng:120.15,lat:33.35,rad:6 },
+    { name:'淮安',lng:119.02,lat:33.61,rad:6 },     { name:'连云港',lng:119.18,lat:34.60,rad:6 },
+    { name:'洛阳',lng:112.45,lat:34.68,rad:10 },    { name:'南阳',lng:112.53,lat:33.00,rad:6 },
+    { name:'新乡',lng:113.88,lat:35.30,rad:6 },     { name:'安阳',lng:114.39,lat:36.10,rad:5 },
+    { name:'烟台',lng:121.45,lat:37.46,rad:10 },    { name:'潍坊',lng:119.16,lat:36.71,rad:8 },
+    { name:'威海',lng:122.12,lat:37.51,rad:8 },     { name:'日照',lng:119.53,lat:35.42,rad:5 },
+    { name:'芜湖',lng:118.43,lat:31.35,rad:10 },    { name:'蚌埠',lng:117.39,lat:32.92,rad:6 },
+    { name:'安庆',lng:117.06,lat:30.53,rad:6 },     { name:'桂林',lng:110.29,lat:25.28,rad:6 },
+    { name:'柳州',lng:109.42,lat:24.33,rad:6 },     { name:'襄阳',lng:112.15,lat:32.04,rad:6 },
+    { name:'宜昌',lng:111.29,lat:30.69,rad:6 },     { name:'荆州',lng:112.24,lat:30.33,rad:5 },
+    { name:'岳阳',lng:113.11,lat:29.37,rad:5 },     { name:'株洲',lng:113.13,lat:27.83,rad:8 },
+    { name:'湘潭',lng:112.94,lat:27.83,rad:7 },     { name:'九江',lng:116.00,lat:29.71,rad:5 },
+    { name:'赣州',lng:114.94,lat:25.83,rad:4 },     { name:'呼和浩特',lng:111.67,lat:40.82,rad:8 },
+    { name:'包头',lng:109.84,lat:40.66,rad:8 },     { name:'鄂尔多斯',lng:109.78,lat:39.61,rad:6 },
+    { name:'西宁',lng:101.78,lat:36.62,rad:5 },     { name:'银川',lng:106.27,lat:38.47,rad:6 },
+    { name:'三亚',lng:109.51,lat:18.25,rad:4 },     { name:'北海',lng:109.12,lat:21.48,rad:4 },
+    { name:'拉萨',lng:91.17,lat:29.65,rad:2 },
+    // ══ 小城市/县城（峰值 2-8）══
+    { name:'锦州',lng:121.13,lat:41.10,rad:6 },     { name:'鞍山',lng:122.99,lat:41.11,rad:7 },
+    { name:'抚顺',lng:123.96,lat:41.88,rad:5 },     { name:'本溪',lng:123.77,lat:41.30,rad:4 },
+    { name:'丹东',lng:124.40,lat:40.13,rad:4 },     { name:'营口',lng:122.23,lat:40.67,rad:5 },
+    { name:'盘锦',lng:122.07,lat:41.12,rad:4 },     { name:'葫芦岛',lng:120.86,lat:40.71,rad:4 },
+    { name:'齐齐哈尔',lng:123.92,lat:47.35,rad:4 },  { name:'牡丹江',lng:129.63,lat:44.55,rad:3 },
+    { name:'大庆',lng:125.03,lat:46.59,rad:5 },     { name:'佳木斯',lng:130.32,lat:46.80,rad:2.5 },
+    { name:'延吉',lng:129.51,lat:42.91,rad:2.5 },   { name:'通化',lng:125.94,lat:41.73,rad:3 },
+    { name:'赤峰',lng:118.96,lat:42.28,rad:4 },     { name:'通辽',lng:122.26,lat:43.62,rad:3 },
+    { name:'乌兰浩特',lng:122.08,lat:46.07,rad:1.5 },{ name:'呼伦贝尔',lng:119.77,lat:49.21,rad:0.8 },
+    { name:'满洲里',lng:117.44,lat:49.60,rad:1 },    { name:'延安',lng:109.49,lat:36.59,rad:3 },
+    { name:'宝鸡',lng:107.24,lat:34.36,rad:3 },     { name:'汉中',lng:107.02,lat:33.07,rad:2.5 },
+    { name:'安康',lng:109.03,lat:32.68,rad:2 },      { name:'榆林',lng:109.73,lat:38.29,rad:3 },
+    { name:'酒泉',lng:98.52,lat:39.74,rad:1.5 },    { name:'嘉峪关',lng:98.29,lat:39.77,rad:1.5 },
+    { name:'天水',lng:105.72,lat:34.58,rad:3 },     { name:'张掖',lng:100.46,lat:38.93,rad:1.5 },
+    { name:'武威',lng:102.64,lat:37.93,rad:2 },     { name:'平凉',lng:106.67,lat:35.54,rad:1.5 },
+    { name:'格尔木',lng:94.90,lat:36.42,rad:1.2 },  { name:'德令哈',lng:97.37,lat:37.37,rad:0.8 },
+    { name:'玉树',lng:97.01,lat:33.00,rad:0.5 },    { name:'果洛',lng:100.23,lat:34.47,rad:0.3 },
+    { name:'同仁',lng:102.02,lat:35.52,rad:0.4 },   { name:'海东',lng:102.10,lat:36.50,rad:1 },
+    { name:'丽江',lng:100.23,lat:26.86,rad:2.5 },   { name:'大理',lng:100.23,lat:25.61,rad:3 },
+    { name:'香格里拉',lng:99.70,lat:27.83,rad:0.8 },{ name:'保山',lng:99.18,lat:25.12,rad:2 },
+    { name:'普洱',lng:100.97,lat:22.83,rad:1.5 },   { name:'临沧',lng:100.09,lat:23.88,rad:1 },
+    { name:'芒市',lng:98.58,lat:24.43,rad:1.5 },    { name:'腾冲',lng:98.49,lat:25.02,rad:1 },
+    { name:'蒙自',lng:103.36,lat:23.37,rad:2 },     { name:'文山',lng:104.24,lat:23.37,rad:1.5 },
+    { name:'昭通',lng:103.72,lat:27.34,rad:1.5 },   { name:'六盘水',lng:104.85,lat:26.59,rad:2.5 },
+    { name:'遵义',lng:106.93,lat:27.73,rad:3 },     { name:'安顺',lng:105.93,lat:26.25,rad:2 },
+    { name:'兴义',lng:104.90,lat:25.09,rad:2 },     { name:'凯里',lng:107.98,lat:26.58,rad:2 },
+    { name:'都匀',lng:107.52,lat:26.26,rad:2 },     { name:'毕节',lng:105.29,lat:27.28,rad:2 },
+    { name:'铜仁',lng:109.19,lat:27.73,rad:1.5 },   { name:'喀什',lng:75.99,lat:39.47,rad:2.5 },
+    { name:'伊宁',lng:81.32,lat:43.92,rad:2.5 },    { name:'阿克苏',lng:80.26,lat:41.17,rad:2 },
+    { name:'库尔勒',lng:86.15,lat:41.73,rad:2 },    { name:'克拉玛依',lng:84.89,lat:45.58,rad:2 },
+    { name:'吐鲁番',lng:89.19,lat:42.95,rad:1.5 },  { name:'哈密',lng:93.51,lat:42.83,rad:1.5 },
+    { name:'阿勒泰',lng:88.14,lat:47.84,rad:1 },    { name:'塔城',lng:82.98,lat:46.75,rad:1 },
+    { name:'和田',lng:79.92,lat:37.11,rad:1.5 },    { name:'昌都',lng:97.18,lat:31.14,rad:0.8 },
+    { name:'林芝',lng:94.36,lat:29.65,rad:0.6 },    { name:'日喀则',lng:88.89,lat:29.27,rad:1 },
+    { name:'那曲',lng:92.07,lat:31.48,rad:0.4 },    { name:'阿里',lng:80.10,lat:32.50,rad:0.15 },
+    // ══ 著名暗夜/观星地区（极低光污染）══
+    { name:'可可西里',lng:91.50,lat:35.30,rad:0.05 },  { name:'羌塘',lng:87.00,lat:34.00,rad:0.03 },
+    { name:'阿尔金山',lng:89.50,lat:38.50,rad:0.04 },  { name:'稻城亚丁',lng:100.30,lat:29.04,rad:0.3 },
+    { name:'甘孜',lng:99.99,lat:31.62,rad:0.5 },       { name:'色达',lng:100.33,lat:32.27,rad:0.4 },
+    { name:'理塘',lng:100.27,lat:29.99,rad:0.3 },      { name:'巴塘',lng:99.10,lat:30.00,rad:0.25 },
+    { name:'阿坝',lng:101.71,lat:31.90,rad:0.5 },      { name:'红原',lng:102.55,lat:32.80,rad:0.2 },
+    { name:'若尔盖',lng:102.97,lat:33.58,rad:0.2 },    { name:'新都桥',lng:101.55,lat:30.05,rad:0.3 },
+    { name:'磨西',lng:102.12,lat:29.65,rad:0.3 },      { name:'冷噶错',lng:101.68,lat:29.40,rad:0.08 },
+    { name:'梅里雪山',lng:98.68,lat:28.44,rad:0.2 },   { name:'雨崩',lng:98.80,lat:28.40,rad:0.1 },
+    { name:'泸沽湖',lng:100.78,lat:27.70,rad:0.5 },    { name:'抚仙湖',lng:102.91,lat:24.51,rad:1 },
+    { name:'漠河',lng:122.53,lat:53.48,rad:0.6 },      { name:'北极村',lng:122.36,lat:53.50,rad:0.3 },
+    { name:'锡林浩特',lng:116.09,lat:43.93,rad:1 },    { name:'阿尔山',lng:119.94,lat:47.18,rad:0.5 },
+    { name:'额济纳旗',lng:101.06,lat:41.96,rad:0.3 },  { name:'巴丹吉林',lng:102.50,lat:39.50,rad:0.05 },
+    { name:'腾格里',lng:105.00,lat:38.60,rad:0.08 },   { name:'祁连',lng:100.25,lat:38.18,rad:0.3 },
+    { name:'门源',lng:101.62,lat:37.38,rad:0.4 },      { name:'刚察',lng:100.15,lat:37.33,rad:0.2 },
+    { name:'茶卡',lng:99.08,lat:36.79,rad:0.3 },       { name:'大柴旦',lng:95.36,lat:37.85,rad:0.2 },
+    { name:'茫崖',lng:90.20,lat:38.30,rad:0.15 },      { name:'冷湖',lng:93.35,lat:38.75,rad:0.1 },
+    { name:'赛里木湖',lng:81.15,lat:44.60,rad:0.2 },   { name:'喀纳斯',lng:87.03,lat:48.72,rad:0.2 },
+    { name:'禾木',lng:87.46,lat:48.57,rad:0.15 },      { name:'白哈巴',lng:86.80,lat:48.70,rad:0.1 },
+    { name:'珠峰大本营',lng:86.85,lat:28.15,rad:0.03 },{ name:'冈仁波齐',lng:81.31,lat:31.07,rad:0.04 },
+    { name:'古格王朝',lng:79.68,lat:31.47,rad:0.02 },  { name:'札达',lng:79.80,lat:31.48,rad:0.03 },
+    { name:'然乌湖',lng:96.82,lat:29.26,rad:0.1 },    { name:'来古冰川',lng:96.69,lat:29.28,rad:0.05 },
+    { name:'墨脱',lng:95.33,lat:29.33,rad:0.1 },      { name:'察隅',lng:97.46,lat:28.66,rad:0.1 },
+    { name:'波密',lng:95.77,lat:29.86,rad:0.3 },      { name:'郎木寺',lng:102.64,lat:34.09,rad:0.3 },
+    { name:'扎尕那',lng:103.22,lat:34.24,rad:0.2 },   { name:'莲宝叶则',lng:101.10,lat:32.91,rad:0.1 },
+    { name:'太行山大峡谷',lng:113.50,lat:35.90,rad:0.8 },{ name:'武隆',lng:107.80,lat:29.33,rad:1 },
+    { name:'梵净山',lng:108.69,lat:27.93,rad:0.8 },   { name:'荔波',lng:107.89,lat:25.42,rad:0.6 },
+    { name:'张家界',lng:110.48,lat:29.13,rad:1.2 },    { name:'神农架',lng:110.68,lat:31.74,rad:0.5 },
+    { name:'恩施',lng:109.49,lat:30.27,rad:1 },        { name:'黄山市',lng:118.34,lat:29.71,rad:1 },
+    { name:'莫干山',lng:119.88,lat:30.63,rad:1.5 },    { name:'天目山',lng:119.44,lat:30.32,rad:1 },
+    { name:'千岛湖',lng:119.03,lat:29.61,rad:1.2 },    { name:'安吉',lng:119.68,lat:30.64,rad:1.2 },
+    { name:'临安',lng:119.72,lat:30.23,rad:2 },        { name:'桐庐',lng:119.82,lat:29.79,rad:1.5 },
+    { name:'淳安',lng:119.04,lat:29.61,rad:1 },        { name:'建德',lng:119.28,lat:29.47,rad:1.5 },
+    { name:'富阳',lng:119.96,lat:30.05,rad:3 },        { name:'余杭',lng:119.99,lat:30.41,rad:6 },
+    { name:'萧山',lng:120.26,lat:30.18,rad:8 },        { name:'钱塘',lng:120.52,lat:30.32,rad:5 },
+    // 长三角周边县城细分
+    { name:'德清',lng:120.08,lat:30.54,rad:2.5 },      { name:'长兴',lng:119.91,lat:31.03,rad:3 },
+    { name:'海宁',lng:120.69,lat:30.53,rad:4 },        { name:'桐乡',lng:120.57,lat:30.63,rad:4 },
+    { name:'嘉善',lng:120.93,lat:30.84,rad:4 },        { name:'平湖',lng:121.02,lat:30.70,rad:3.5 },
+    { name:'海盐',lng:120.95,lat:30.53,rad:3 },        { name:'诸暨',lng:120.24,lat:29.72,rad:4 },
+    { name:'嵊州',lng:120.82,lat:29.58,rad:3 },        { name:'新昌',lng:120.90,lat:29.50,rad:2.5 },
+    { name:'上虞',lng:120.87,lat:30.02,rad:4 },        { name:'慈溪',lng:121.25,lat:30.17,rad:5 },
+    { name:'余姚',lng:121.16,lat:30.04,rad:4.5 },      { name:'宁海',lng:121.43,lat:29.29,rad:3 },
+    { name:'象山',lng:121.87,lat:29.47,rad:2.5 },      { name:'奉化',lng:121.41,lat:29.66,rad:3 },
+    { name:'浦江',lng:119.89,lat:29.45,rad:2 },        { name:'武义',lng:119.82,lat:28.90,rad:2 },
+    { name:'磐安',lng:120.45,lat:29.05,rad:1.5 },      { name:'永康',lng:120.04,lat:28.89,rad:4 },
+    { name:'义乌',lng:120.08,lat:29.30,rad:8 },        { name:'东阳',lng:120.24,lat:29.29,rad:4 },
+    { name:'兰溪',lng:119.48,lat:29.21,rad:3 },        { name:'龙游',lng:119.17,lat:29.03,rad:2 },
+    { name:'常山',lng:118.51,lat:28.90,rad:2 },        { name:'开化',lng:118.42,lat:29.14,rad:1.5 },
+    { name:'江山',lng:118.63,lat:28.74,rad:3 },        { name:'遂昌',lng:119.28,lat:28.59,rad:1.5 },
+    { name:'松阳',lng:119.48,lat:28.45,rad:1.5 },      { name:'龙泉',lng:119.14,lat:28.08,rad:2 },
+    { name:'庆元',lng:119.06,lat:27.62,rad:1 },        { name:'景宁',lng:119.64,lat:27.98,rad:1 },
+    { name:'云和',lng:119.57,lat:28.12,rad:1.5 },      { name:'青田',lng:120.29,lat:28.14,rad:3 },
+    { name:'缙云',lng:120.09,lat:28.65,rad:2.5 },      { name:'仙居',lng:120.73,lat:28.85,rad:2 },
+    { name:'天台',lng:121.03,lat:29.14,rad:2.5 },      { name:'三门',lng:121.40,lat:29.10,rad:2 },
+    { name:'玉环',lng:121.23,lat:28.14,rad:2.5 },      { name:'洞头',lng:121.16,lat:27.84,rad:2 },
+    { name:'文成',lng:120.09,lat:27.79,rad:1.5 },      { name:'泰顺',lng:119.72,lat:27.57,rad:1 },
+    { name:'苍南',lng:120.41,lat:27.52,rad:3.5 },      { name:'平阳',lng:120.57,lat:27.67,rad:4 },
+    { name:'瑞安',lng:120.66,lat:27.78,rad:5 },        { name:'永嘉',lng:120.68,lat:28.15,rad:4 },
+    { name:'乐清',lng:120.96,lat:28.12,rad:5 },        { name:'温岭',lng:121.37,lat:28.37,rad:4 },
   ];
 
   const BORTLE_TABLE = [
-    { max:0.15,level:1,label:'绝佳暗夜',color:'#010a1a',desc:'极暗 — 银河清晰，深空摄影绝佳' },
-    { max:0.30,level:2,label:'典型暗夜',color:'#0a1a4a',desc:'很暗 — 银河可见，深空天体丰富' },
-    { max:0.60,level:3,label:'乡村天空',color:'#1a3a6a',desc:'暗 — 银河可见，适合观星' },
-    { max:1.20,level:4,label:'郊野过渡',color:'#1a6a3a',desc:'较暗 — 银河隐约，亮星清晰' },
-    { max:2.50,level:5,label:'郊区天空',color:'#8aaa1a',desc:'偏亮 — 银河不可见' },
-    { max:8.00,level:6,label:'明亮郊区',color:'#daa000',desc:'亮 — 仅亮星可见' },
-    { max:20.0,level:7,label:'城郊过渡',color:'#da4a00',desc:'很亮 — 仅行星可见' },
-    { max:50.0,level:8,label:'城市天空',color:'#b0b0c0',desc:'非常亮 — 仅月亮可见' },
-    { max:Infinity,level:9,label:'内城天空',color:'#f0f0f0',desc:'极亮 — 不适合观星' },
+    { max:0.08, level:1, label:'绝佳暗夜', color:'#010a1a', desc:'极暗 — 银河清晰，深空摄影绝佳' },
+    { max:0.20, level:2, label:'典型暗夜', color:'#0a1a4a', desc:'很暗 — 银河可见，深空天体丰富' },
+    { max:0.50, level:3, label:'乡村天空', color:'#1a3a6a', desc:'暗 — 银河可见，适合观星' },
+    { max:1.20, level:4, label:'郊野过渡', color:'#1a6a3a', desc:'较暗 — 银河隐约，亮星清晰' },
+    { max:3.00, level:5, label:'郊区天空', color:'#8aaa1a', desc:'偏亮 — 银河不可见，星座可见' },
+    { max:8.00, level:6, label:'明亮郊区', color:'#daa000', desc:'亮 — 仅亮星可见' },
+    { max:20.0, level:7, label:'城郊过渡', color:'#da4a00', desc:'很亮 — 仅行星可见' },
+    { max:45.0, level:8, label:'城市天空', color:'#b0b0c0', desc:'非常亮 — 仅月亮可见' },
+    { max:Infinity, level:9, label:'内城天空', color:'#f0f0f0', desc:'极亮 — 不适合观星' },
   ];
 
   function radianceToBortle(rad) {
@@ -172,15 +274,54 @@
   }
 
   function estimateBortle(lng, lat) {
-    var totalW = 0, weightedR = 0, closestD = Infinity, closestCity = null;
+    // 收集附近 200km 内的城市数据点
+    var nearby = [];
     for (var i=0; i<CITY_VIIRS.length; i++) {
-      var c = CITY_VIIRS[i], d = haversineDist(lng, lat, c.lng, c.lat);
-      if (d < closestD) { closestD = d; closestCity = c; }
-      var w = Math.exp(-d/80)*c.rad;
-      weightedR += w; totalW += Math.exp(-d/80);
+      var c = CITY_VIIRS[i];
+      var d = haversineDist(lng, lat, c.lng, c.lat);
+      if (d <= 200) {
+        nearby.push({ rad: c.rad, dist: d });
+      }
     }
-    var radiance = closestD < 5 ? closestCity.rad : (totalW>0 ? weightedR/totalW : 0.2);
-    return radianceToBortle(radiance);
+
+    // 如果 200km 内有数据点，使用反距离加权
+    if (nearby.length > 0) {
+      var totalWeight = 0, weightedRad = 0;
+      var closestDist = Infinity, closestRad = 0;
+
+      for (var j=0; j<nearby.length; j++) {
+        var nb = nearby[j];
+        if (nb.dist < closestDist) { closestDist = nb.dist; closestRad = nb.rad; }
+        // 使用更陡的衰减曲线，让郊区和城市区分更明显
+        var weight = Math.exp(-nb.dist / 15) * nb.rad + 0.01;
+        weightedRad += weight;
+        totalWeight += Math.exp(-nb.dist / 15);
+      }
+
+      var baseRad = totalWeight > 0 ? weightedRad / totalWeight : 0.1;
+
+      // 距离衰减校正：离城市越远，光污染越低
+      var decayFactor;
+      if (closestDist < 2) {
+        decayFactor = 1.0;      // 城市中心
+      } else if (closestDist < 8) {
+        decayFactor = 0.7;      // 近郊
+      } else if (closestDist < 20) {
+        decayFactor = 0.4;      // 远郊
+      } else if (closestDist < 50) {
+        decayFactor = 0.15;     // 偏远郊区/山区
+      } else if (closestDist < 100) {
+        decayFactor = 0.04;     // 远离城市
+      } else {
+        decayFactor = 0.01;     // 非常偏远
+      }
+
+      var radiance = baseRad * decayFactor;
+      return radianceToBortle(radiance);
+    }
+
+    // 200km 内无数据点：使用保守低值（可能是无人区）
+    return [1, '绝佳暗夜', '#010a1a', '偏远地区 — 极暗，银河清晰'];
   }
 
   function getBortle(lng, lat, cb) {
