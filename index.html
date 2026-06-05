@@ -3,1034 +3,346 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>中国光污染观星地图 ✦ Dark Sky Map</title>
+<title>光污染观星地图 ✦ Dark Sky Map</title>
 <style>
-  :root {
-    --bg: #0a0a12;
-    --panel-bg: rgba(10, 10, 20, 0.92);
-    --text: #c8c8d4;
-    --text-dim: #7a7a8c;
-    --accent: #4a90d9;
-    --accent2: #e8a840;
-    --border: rgba(255, 255, 255, 0.08);
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  html, body {
-    width: 100%; height: 100%;
-    overflow: hidden;
-    background: var(--bg);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    color: var(--text);
-  }
-
-  #map-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-
-  /* ===== Panel base ===== */
-  .panel {
-    background: var(--panel-bg);
-    backdrop-filter: blur(14px) saturate(1.2);
-    -webkit-backdrop-filter: blur(14px) saturate(1.2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    pointer-events: auto;
-  }
-
-  /* ===== Header ===== */
-  #header {
-    position: absolute; top: 16px; left: 16px;
-    z-index: 100; max-width: 340px;
-    padding: 14px 18px;
-  }
-  #header h1 {
-    font-size: 18px; font-weight: 700;
-    color: #fff; display: flex; align-items: center; gap: 8px;
-  }
-  #header h1 .icon { font-size: 22px; }
-  #header .subtitle { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
-  #header .status-row {
-    display: flex; align-items: center; gap: 6px;
-    margin-top: 8px; font-size: 12px;
-  }
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #555; flex-shrink: 0;
-    transition: background 0.3s;
-  }
-  .status-dot.located { background: #4ec94e; }
-  .status-dot.error { background: #e04a4a; }
-
-  /* ===== Search ===== */
-  #search-box {
-    position: absolute; top: 120px; left: 16px;
-    z-index: 100; width: 300px;
-    pointer-events: auto;
-  }
-  #search-box .search-inner {
-    display: flex; align-items: center;
-    background: var(--panel-bg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
-  #search-box .search-inner:focus-within {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(74,144,217,0.2);
-  }
-  #search-box input {
-    flex: 1;
-    background: none; border: none; outline: none;
-    color: #fff; font-size: 14px;
-    padding: 11px 14px;
-    font-family: inherit;
-    min-width: 0;
-  }
-  #search-box input::placeholder { color: var(--text-dim); }
-  #search-box .search-icon, #search-box .search-clear {
-    flex-shrink: 0; width: 36px; height: 36px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; color: var(--text-dim);
-    font-size: 16px; transition: color 0.2s;
-    background: none; border: none;
-  }
-  #search-box .search-icon:hover, #search-box .search-clear:hover { color: #fff; }
-  #search-box .search-clear { display: none; }
-  #search-box .search-clear.visible { display: flex; }
-
-  /* AutoComplete suggestions dropdown */
-  .amap-sug-result {
-    background: var(--panel-bg) !important;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid var(--border) !important;
-    border-radius: 0 0 12px 12px !important;
-    margin-top: -1px !important;
-    overflow: hidden !important;
-  }
-  .amap-sug-result .auto-list-item {
-    color: var(--text) !important;
-    padding: 10px 14px !important;
-    font-size: 13px !important;
-    border-bottom: 1px solid var(--border) !important;
-    cursor: pointer !important;
-  }
-  .amap-sug-result .auto-list-item:hover,
-  .amap-sug-result .auto-list-item.hover {
-    background: rgba(255,255,255,0.08) !important;
-    color: #fff !important;
-  }
-
-  /* ===== Controls ===== */
-  #controls {
-    position: absolute; top: 16px; right: 16px;
-    z-index: 100;
-    display: flex; flex-direction: column; gap: 8px;
-  }
-  .ctrl-btn {
-    width: 42px; height: 42px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--panel-bg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    color: #fff; font-size: 18px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.2s; position: relative;
-  }
-  .ctrl-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
-  .ctrl-btn.active { background: var(--accent); border-color: rgba(74,144,217,0.6); box-shadow: 0 0 12px rgba(74,144,217,0.25); }
-  .ctrl-btn .tooltip {
-    position: absolute; right: 54px;
-    background: rgba(0,0,0,0.88); color: #ccc;
-    font-size: 11px; padding: 5px 10px; border-radius: 6px;
-    white-space: nowrap; pointer-events: none;
-    opacity: 0; transition: opacity 0.2s;
-  }
-  .ctrl-btn:hover .tooltip { opacity: 1; }
-
-  /* ===== Legend ===== */
-  #legend {
-    position: absolute; bottom: 32px; right: 16px;
-    z-index: 100; min-width: 175px;
-    padding: 14px 16px;
-  }
-  #legend h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #fff; }
-  .scale-item {
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 5px; font-size: 11px; color: var(--text-dim);
-  }
-  .swatch { width: 24px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-  .swatch.b1 { background: #010a1a; border: 1px solid #1a2a4a; }
-  .swatch.b2 { background: #0a1a4a; }
-  .swatch.b3 { background: #1a3a6a; }
-  .swatch.b4 { background: #1a6a3a; }
-  .swatch.b5 { background: #8aaa1a; }
-  .swatch.b6 { background: #daa000; }
-  .swatch.b7 { background: #da4a00; }
-  .swatch.b8 { background: #b0b0c0; }
-  .swatch.b9 { background: #f0f0f0; border: 1px solid #ccc; }
-  .scale-label { flex: 1; white-space: nowrap; }
-
-  /* ===== Map click info ===== */
-  .amap-info-content {
-    background: var(--panel-bg) !important;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid var(--border) !important;
-    border-radius: 12px !important;
-    color: var(--text) !important;
-    padding: 12px 16px !important;
-    font-size: 13px; line-height: 1.8;
-  }
-  .amap-info-sharp {
-    border-top-color: var(--panel-bg) !important;
-  }
-
-  /* ===== Mobile bar ===== */
-  #mobile-bar {
-    display: none;
-    position: absolute; bottom: 0; left: 0; right: 0;
-    background: var(--panel-bg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-top: 1px solid var(--border);
-    padding: 10px 16px;
-    z-index: 100; pointer-events: auto;
-  }
-  #mobile-bar .bar-inner { display: flex; align-items: center; gap: 12px; }
-  #mobile-bar .loc-info { flex: 1; font-size: 12px; }
-  .bortle-badge {
-    padding: 5px 14px; border-radius: 20px;
-    font-size: 13px; font-weight: 700; color: #fff;
-    white-space: nowrap;
-  }
-
-  /* ===== Loading ===== */
-  #loading {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: var(--panel-bg);
-    border: 1px solid var(--border); border-radius: 12px;
-    padding: 24px 36px;
-    z-index: 200; text-align: center;
-    transition: opacity 0.4s;
-  }
-  #loading.done { opacity: 0; pointer-events: none; }
-  .spinner {
-    width: 32px; height: 32px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 10px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ===== Responsive ===== */
-  @media (max-width: 640px) {
-    #header {
-      top: 8px; left: 8px; right: 60px;
-      max-width: none; padding: 10px 14px; border-radius: 10px;
-    }
-    #header h1 { font-size: 15px; }
-    #header .subtitle { font-size: 11px; }
-    #legend {
-      bottom: 62px; right: 8px;
-      padding: 10px 12px; min-width: 145px; border-radius: 10px;
-    }
-    .scale-item { font-size: 10px; margin-bottom: 3px; }
-    .swatch { width: 18px; height: 10px; }
-    #controls { top: 8px; right: 8px; gap: 6px; }
-    .ctrl-btn { width: 36px; height: 36px; font-size: 16px; border-radius: 8px; }
-    #mobile-bar { display: block; }
-    #search-box { top: 88px; left: 8px; right: 8px; width: auto; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#0a0a12; font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#c8c8d4; }
+  #map { width:100%; height:100%; }
+  #loading { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(10,10,20,0.95); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:24px 36px; z-index:999; text-align:center; transition:opacity 0.4s; }
+  #loading.hidden { opacity:0; pointer-events:none; }
+  .spinner { width:32px; height:32px; border:3px solid rgba(255,255,255,0.1); border-top-color:#4a90d9; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #status { position:absolute; top:16px; left:16px; z-index:100; background:rgba(10,10,20,0.92); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px 18px; max-width:300px; backdrop-filter:blur(14px); }
+  #status h1 { font-size:18px; color:#fff; }
+  #status .info { font-size:12px; color:#7a7a8c; margin-top:4px; }
+  #legend { position:absolute; bottom:32px; right:16px; z-index:100; background:rgba(10,10,20,0.92); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px 16px; min-width:175px; backdrop-filter:blur(14px); }
+  #legend h3 { font-size:13px; color:#fff; margin-bottom:10px; }
+  .legend-item { display:flex; align-items:center; gap:8px; margin-bottom:5px; font-size:11px; color:#7a7a8c; }
+  .legend-swatch { width:24px; height:12px; border-radius:3px; flex-shrink:0; }
+  .ctrl { position:absolute; top:16px; right:16px; z-index:100; display:flex; flex-direction:column; gap:8px; }
+  .ctrl button { width:42px; height:42px; border-radius:10px; background:rgba(10,10,20,0.92); border:1px solid rgba(255,255,255,0.08); color:#fff; font-size:18px; cursor:pointer; backdrop-filter:blur(14px); transition:all 0.2s; }
+  .ctrl button:hover { background:rgba(255,255,255,0.12); }
+  .ctrl button.active { background:#4a90d9; }
+  .bortle-badge { padding:4px 10px; border-radius:20px; font-size:12px; font-weight:700; color:#fff; white-space:nowrap; }
+  @media (max-width:640px) {
+    #status { top:8px; left:8px; right:60px; max-width:none; padding:10px 14px; }
+    #status h1 { font-size:15px; }
+    #legend { bottom:62px; right:8px; padding:10px 12px; min-width:145px; }
+    .ctrl { top:8px; right:8px; gap:6px; }
+    .ctrl button { width:36px; height:36px; font-size:16px; }
   }
 </style>
 </head>
 <body>
 
-<div id="map-container"></div>
+<div id="map"></div>
 
-<!-- Loading -->
-<div id="loading"><div class="spinner"></div><div style="font-size:13px;color:var(--text-dim)">正在加载星图...</div></div>
+<div id="loading"><div class="spinner"></div><div style="font-size:13px;color:#7a7a8c">正在加载星图...</div></div>
 
-<!-- Header -->
-<div id="header" class="panel">
-  <h1><span class="icon">🌌</span>光污染观星地图</h1>
-  <div class="subtitle">NASA VIIRS 夜间卫星数据 &nbsp;·&nbsp; 高德底图</div>
-  <div class="status-row">
-    <span class="status-dot" id="status-dot"></span>
-    <span id="status-text">初始化中...</span>
-  </div>
+<div id="status">
+  <h1>🌌 光污染观星地图</h1>
+  <div class="info">NASA VIIRS 卫星数据</div>
+  <div class="info" id="status-text" style="color:#4ec94e;margin-top:6px;">初始化中...</div>
 </div>
 
-<!-- Search -->
-<div id="search-box">
-  <div class="search-inner">
-    <span class="search-icon">🔍</span>
-    <input type="text" id="search-input" placeholder="搜索地点，查看光污染等级..." autocomplete="off">
-    <button class="search-clear" id="search-clear" title="清除">✕</button>
-  </div>
+<div class="ctrl">
+  <button class="active" id="btn-layer" title="光污染图层">🌙</button>
+  <button id="btn-locate" title="定位">📍</button>
 </div>
 
-<!-- Controls -->
-<div id="controls">
-  <button class="ctrl-btn active" id="btn-layer">🌙<span class="tooltip">光污染图层 (L)</span></button>
-  <button class="ctrl-btn" id="btn-locate">📍<span class="tooltip">定位到我 (F)</span></button>
-  <button class="ctrl-btn" id="btn-fullscreen">⛶<span class="tooltip">全屏</span></button>
+<div id="legend">
+  <h3>🌃 Bortle 等级</h3>
+  <div class="legend-item"><span class="legend-swatch" style="background:#010a1a;border:1px solid #1a2a4a"></span>1级·绝佳暗夜</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#0a1a4a"></span>2级·典型暗夜</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#1a3a6a"></span>3级·乡村天空</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#1a6a3a"></span>4级·郊野过渡</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#8aaa1a"></span>5级·郊区天空</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#daa000"></span>6级·明亮郊区</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#da4a00"></span>7级·城郊过渡</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#b0b0c0"></span>8级·城市天空</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#f0f0f0;border:1px solid #ccc"></span>9级·内城天空</div>
 </div>
 
-<!-- Bortle Legend -->
-<div id="legend" class="panel">
-  <h3>🌃 Bortle 光污染等级</h3>
-  <div class="scale-item"><span class="swatch b1"></span><span class="scale-label">1 级&nbsp;·&nbsp;绝佳暗夜</span></div>
-  <div class="scale-item"><span class="swatch b2"></span><span class="scale-label">2 级&nbsp;·&nbsp;典型暗夜</span></div>
-  <div class="scale-item"><span class="swatch b3"></span><span class="scale-label">3 级&nbsp;·&nbsp;乡村天空</span></div>
-  <div class="scale-item"><span class="swatch b4"></span><span class="scale-label">4 级&nbsp;·&nbsp;郊野过渡</span></div>
-  <div class="scale-item"><span class="swatch b5"></span><span class="scale-label">5 级&nbsp;·&nbsp;郊区天空</span></div>
-  <div class="scale-item"><span class="swatch b6"></span><span class="scale-label">6 级&nbsp;·&nbsp;明亮郊区</span></div>
-  <div class="scale-item"><span class="swatch b7"></span><span class="scale-label">7 级&nbsp;·&nbsp;城郊过渡</span></div>
-  <div class="scale-item"><span class="swatch b8"></span><span class="scale-label">8 级&nbsp;·&nbsp;城市天空</span></div>
-  <div class="scale-item"><span class="swatch b9"></span><span class="scale-label">9 级&nbsp;·&nbsp;内城天空</span></div>
-</div>
-
-<!-- Mobile bar -->
-<div id="mobile-bar">
-  <div class="bar-inner">
-    <div class="loc-info">
-      <div style="color:#fff;font-weight:600" id="mob-loc">—</div>
-      <div style="color:var(--text-dim);font-size:10px" id="mob-coords"></div>
-    </div>
+<div id="mobile-bar" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(10,10,20,0.92);border-top:1px solid rgba(255,255,255,0.08);padding:10px 16px;z-index:100;">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div style="flex:1;"><div style="color:#fff;font-weight:600" id="mob-loc">—</div><div style="color:#7a7a8c;font-size:10px" id="mob-coords"></div></div>
     <div class="bortle-badge" id="mob-bortle" style="background:#555">—</div>
   </div>
 </div>
 
-<!-- ============================================================= -->
-<!-- Amap JS API -->
-<!-- ============================================================= -->
 <script>
-  // ╔══════════════════════════════════════════════════════════════╗
-  // ║  配置区：请替换为你自己的高德 API Key 和安全密钥            ║
-  // ║  获取地址：https://console.amap.com                         ║
-  // ╚══════════════════════════════════════════════════════════════╝
-  const AMAP_KEY    = '7fa2938b063c0fa7ca09c840ead945cf';
-  const AMAP_SECRET = '6b11a45456ab152ef39d6102bf17c64b';
-
-  window._AMapSecurityConfig = { securityJsCode: AMAP_SECRET };
+  window._AMapSecurityConfig = { securityJsCode: '6b11a45456ab152ef39d6102bf17c64b' };
 </script>
-<script src="https://webapi.amap.com/maps?v=2.0&key=7fa2938b063c0fa7ca09c840ead945cf&plugin=AMap.Geolocation,AMap.Scale,AMap.ToolBar,AMap.AutoComplete,AMap.PlaceSearch"></script>
-<!-- ============================================================= -->
+<script src="https://webapi.amap.com/maps?v=2.0&key=7fa2938b063c0fa7ca09c840ead945cf&plugin=AMap.Geolocation,AMap.Scale,AMap.ToolBar"></script>
 
 <script>
 (function() {
   'use strict';
 
-  // ── DOM refs ──────────────────────────────────────────────
-  const $ = id => document.getElementById(id);
-  const statusDot = $('status-dot');
-  const statusText = $('status-text');
-  const loadingEl = $('loading');
-  const btnLayer = $('btn-layer');
-  const btnLocate = $('btn-locate');
-  const btnFullscreen = $('btn-fullscreen');
-  const mobLoc = $('mob-loc');
-  const mobCoords = $('mob-coords');
-  const mobBortle = $('mob-bortle');
-  const searchInput = $('search-input');
-  const searchClear = $('search-clear');
-
-  // ── State ─────────────────────────────────────────────────
-  let map, geolocation, lightLayer, userMarker, userInfoWin, searchMarker, searchInfoWin, clickMarker, clickInfoWin;
-  let layerVisible = true;
-  let currentBortle = null;
-  let autoComplete = null;
-  let placeSearch = null;
-
-  // ── Bortle 等级精确估算 ─────────────────────────────
-  // 基于 VIIRS 辐射值映射到 Bortle 等级
-  // 辐射值范围参考：Falchi et al. 2016 世界光污染地图集
-  const BORTLE_TABLE = [
-    { maxRad: 0.15, level: 1, label: '绝佳暗夜', color: '#010a1a', desc: '极暗 — 银河清晰可见，深空摄影绝佳' },
-    { maxRad: 0.30, level: 2, label: '典型暗夜', color: '#0a1a4a', desc: '很暗 — 银河可见，深空天体丰富' },
-    { maxRad: 0.60, level: 3, label: '乡村天空', color: '#1a3a6a', desc: '暗 — 银河可见，适合星空观测' },
-    { maxRad: 1.20, level: 4, label: '郊野过渡', color: '#1a6a3a', desc: '较暗 — 银河隐约可见，亮星清晰' },
-    { maxRad: 2.50, level: 5, label: '郊区天空', color: '#8aaa1a', desc: '偏亮 — 银河不可见，主要星座可见' },
-    { maxRad: 8.00, level: 6, label: '明亮郊区', color: '#daa000', desc: '亮 — 仅亮星可见，不推荐观星' },
-    { maxRad: 20.0, level: 7, label: '城郊过渡', color: '#da4a00', desc: '很亮 — 光污染严重，仅行星可见' },
-    { maxRad: 50.0, level: 8, label: '城市天空', color: '#b0b0c0', desc: '非常亮 — 仅月球和亮行星可见' },
-    { maxRad: Infinity, level: 9, label: '内城天空', color: '#f0f0f0', desc: '极亮 — 不适合观星' }
+  // ---- 中国城市 VIIRS 辐射值数据 ----
+  const CITY_VIIRS = [
+    { name:'上海',lng:121.47,lat:31.23,rad:55 }, { name:'北京',lng:116.41,lat:39.90,rad:48 },
+    { name:'广州',lng:113.26,lat:23.13,rad:52 }, { name:'深圳',lng:114.06,lat:22.55,rad:50 },
+    { name:'重庆',lng:106.55,lat:29.56,rad:38 }, { name:'天津',lng:117.19,lat:39.13,rad:42 },
+    { name:'成都',lng:104.07,lat:30.57,rad:35 }, { name:'武汉',lng:114.30,lat:30.60,rad:32 },
+    { name:'杭州',lng:120.16,lat:30.27,rad:38 }, { name:'南京',lng:118.78,lat:32.06,rad:36 },
+    { name:'郑州',lng:113.63,lat:34.75,rad:30 }, { name:'长沙',lng:112.97,lat:28.23,rad:28 },
+    { name:'西安',lng:108.94,lat:34.26,rad:32 }, { name:'济南',lng:117.00,lat:36.67,rad:28 },
+    { name:'青岛',lng:120.38,lat:36.07,rad:22 }, { name:'大连',lng:121.62,lat:38.92,rad:20 },
+    { name:'厦门',lng:118.09,lat:24.48,rad:24 }, { name:'福州',lng:119.30,lat:26.08,rad:26 },
+    { name:'合肥',lng:117.23,lat:31.82,rad:24 }, { name:'南昌',lng:115.86,lat:28.68,rad:22 },
+    { name:'沈阳',lng:123.43,lat:41.80,rad:28 }, { name:'长春',lng:125.32,lat:43.90,rad:20 },
+    { name:'哈尔滨',lng:126.64,lat:45.75,rad:22 }, { name:'石家庄',lng:114.50,lat:38.04,rad:24 },
+    { name:'太原',lng:112.55,lat:37.87,rad:18 }, { name:'呼和浩特',lng:111.67,lat:40.82,rad:10 },
+    { name:'兰州',lng:103.82,lat:36.06,rad:12 }, { name:'西宁',lng:101.78,lat:36.62,rad:6 },
+    { name:'银川',lng:106.27,lat:38.47,rad:8 }, { name:'贵阳',lng:106.63,lat:26.65,rad:16 },
+    { name:'昆明',lng:102.83,lat:24.88,rad:14 }, { name:'南宁',lng:108.37,lat:22.82,rad:18 },
+    { name:'海口',lng:110.35,lat:20.02,rad:14 }, { name:'乌鲁木齐',lng:87.62,lat:43.83,rad:14 },
+    { name:'拉萨',lng:91.17,lat:29.65,rad:2 }, { name:'苏州',lng:120.59,lat:31.30,rad:28 },
+    { name:'东莞',lng:113.75,lat:23.05,rad:32 }, { name:'宁波',lng:121.54,lat:29.87,rad:22 },
+    { name:'无锡',lng:120.31,lat:31.57,rad:26 }, { name:'常州',lng:119.97,lat:31.81,rad:22 },
+    { name:'温州',lng:120.70,lat:28.00,rad:16 }, { name:'绍兴',lng:120.58,lat:30.05,rad:16 },
+    { name:'珠海',lng:113.58,lat:22.27,rad:16 }, { name:'佛山',lng:113.12,lat:23.02,rad:24 },
+    { name:'中山',lng:113.38,lat:22.52,rad:20 }, { name:'惠州',lng:114.42,lat:23.11,rad:14 },
+    { name:'唐山',lng:118.18,lat:39.63,rad:14 }, { name:'徐州',lng:117.18,lat:34.27,rad:10 },
+    { name:'洛阳',lng:112.45,lat:34.68,rad:8 }, { name:'芜湖',lng:118.43,lat:31.35,rad:8 },
+    { name:'宜昌',lng:111.29,lat:30.69,rad:4 }, { name:'襄阳',lng:112.15,lat:32.04,rad:5 },
+    { name:'岳阳',lng:113.11,lat:29.37,rad:4 }, { name:'桂林',lng:110.29,lat:25.28,rad:5 },
+    { name:'三亚',lng:109.51,lat:18.25,rad:3 }, { name:'包头',lng:109.84,lat:40.66,rad:6 },
+    { name:'齐齐哈尔',lng:123.92,lat:47.35,rad:3 }, { name:'大庆',lng:125.03,lat:46.59,rad:4 },
+    { name:'佳木斯',lng:130.32,lat:46.80,rad:1.5 }, { name:'酒泉',lng:98.52,lat:39.74,rad:1 },
+    { name:'喀什',lng:75.99,lat:39.47,rad:1.5 }, { name:'伊宁',lng:81.32,lat:43.92,rad:1.5 },
+    { name:'格尔木',lng:94.90,lat:36.42,rad:0.5 }, { name:'那曲',lng:92.07,lat:31.48,rad:0.15 },
+    { name:'阿里',lng:80.10,lat:32.50,rad:0.08 }, { name:'林芝',lng:94.36,lat:29.65,rad:0.2 },
+    { name:'日喀则',lng:88.89,lat:29.27,rad:0.4 }, { name:'稻城',lng:100.30,lat:29.04,rad:0.1 },
+    { name:'甘孜',lng:99.99,lat:31.62,rad:0.25 }, { name:'阿坝',lng:101.71,lat:31.90,rad:0.3 },
+    { name:'丽江',lng:100.23,lat:26.86,rad:1 }, { name:'大理',lng:100.23,lat:25.61,rad:1.5 },
+    { name:'香格里拉',lng:99.70,lat:27.83,rad:0.3 }, { name:'漠河',lng:122.53,lat:53.48,rad:0.4 },
+    { name:'呼伦贝尔',lng:119.77,lat:49.21,rad:0.5 }, { name:'锡林浩特',lng:116.09,lat:43.93,rad:0.6 },
+    { name:'可可西里',lng:91.50,lat:35.30,rad:0.05 }, { name:'阿尔山',lng:119.94,lat:47.18,rad:0.2 },
+    { name:'德令哈',lng:97.37,lat:37.37,rad:0.3 }, { name:'玉树',lng:97.01,lat:33.00,rad:0.2 },
+    { name:'阿克苏',lng:80.26,lat:41.17,rad:1.2 }, { name:'吐鲁番',lng:89.19,lat:42.95,rad:1 },
+    { name:'哈密',lng:93.51,lat:42.83,rad:0.8 }, { name:'嘉峪关',lng:98.29,lat:39.77,rad:1.2 },
+    { name:'天水',lng:105.72,lat:34.58,rad:2 },
   ];
 
-  function radianceToBortle(radiance) {
-    for (const m of BORTLE_TABLE) {
-      if (radiance < m.maxRad) return [m.level, m.label, m.color, m.desc];
-    }
-    return [9, '内城天空', '#f0f0f0', '极亮 — 不适合观星'];
+  const BORTLE_TABLE = [
+    { max:0.15,level:1,label:'绝佳暗夜',color:'#010a1a',desc:'极暗 — 银河清晰，深空摄影绝佳' },
+    { max:0.30,level:2,label:'典型暗夜',color:'#0a1a4a',desc:'很暗 — 银河可见，深空天体丰富' },
+    { max:0.60,level:3,label:'乡村天空',color:'#1a3a6a',desc:'暗 — 银河可见，适合观星' },
+    { max:1.20,level:4,label:'郊野过渡',color:'#1a6a3a',desc:'较暗 — 银河隐约，亮星清晰' },
+    { max:2.50,level:5,label:'郊区天空',color:'#8aaa1a',desc:'偏亮 — 银河不可见' },
+    { max:8.00,level:6,label:'明亮郊区',color:'#daa000',desc:'亮 — 仅亮星可见' },
+    { max:20.0,level:7,label:'城郊过渡',color:'#da4a00',desc:'很亮 — 仅行星可见' },
+    { max:50.0,level:8,label:'城市天空',color:'#b0b0c0',desc:'非常亮 — 仅月亮可见' },
+    { max:Infinity,level:9,label:'内城天空',color:'#f0f0f0',desc:'极亮 — 不适合观星' },
+  ];
+
+  function radianceToBortle(rad) {
+    for (var m of BORTLE_TABLE) { if (rad < m.max) return [m.level,m.label,m.color,m.desc]; }
+    return [9,'内城天空','#f0f0f0','极亮'];
   }
 
-  // ── 中国主要城市 VIIRS 辐射值参考数据 ─────────────────
-  // 数据来源：EOG VIIRS Annual VNL V2 年度合成
-  // 辐射值单位：nW/cm²/sr，取市中心峰值
-  const CITY_VIIRS_DATA = [
-    // 大城市（高辐射）
-    { name: '上海', lng: 121.47, lat: 31.23, rad: 55.0 },
-    { name: '北京', lng: 116.41, lat: 39.90, rad: 48.0 },
-    { name: '广州', lng: 113.26, lat: 23.13, rad: 52.0 },
-    { name: '深圳', lng: 114.06, lat: 22.55, rad: 50.0 },
-    { name: '重庆', lng: 106.55, lat: 29.56, rad: 38.0 },
-    { name: '天津', lng: 117.19, lat: 39.13, rad: 42.0 },
-    { name: '成都', lng: 104.07, lat: 30.57, rad: 35.0 },
-    { name: '武汉', lng: 114.30, lat: 30.60, rad: 32.0 },
-    { name: '杭州', lng: 120.16, lat: 30.27, rad: 38.0 },
-    { name: '南京', lng: 118.78, lat: 32.06, rad: 36.0 },
-    { name: '郑州', lng: 113.63, lat: 34.75, rad: 30.0 },
-    { name: '长沙', lng: 112.97, lat: 28.23, rad: 28.0 },
-    { name: '西安', lng: 108.94, lat: 34.26, rad: 32.0 },
-    { name: '济南', lng: 117.00, lat: 36.67, rad: 28.0 },
-    { name: '青岛', lng: 120.38, lat: 36.07, rad: 22.0 },
-    { name: '大连', lng: 121.62, lat: 38.92, rad: 20.0 },
-    { name: '厦门', lng: 118.09, lat: 24.48, rad: 24.0 },
-    { name: '福州', lng: 119.30, lat: 26.08, rad: 26.0 },
-    { name: '合肥', lng: 117.23, lat: 31.82, rad: 24.0 },
-    { name: '南昌', lng: 115.86, lat: 28.68, rad: 22.0 },
-    { name: '沈阳', lng: 123.43, lat: 41.80, rad: 28.0 },
-    { name: '长春', lng: 125.32, lat: 43.90, rad: 20.0 },
-    { name: '哈尔滨', lng: 126.64, lat: 45.75, rad: 22.0 },
-    { name: '石家庄', lng: 114.50, lat: 38.04, rad: 24.0 },
-    { name: '太原', lng: 112.55, lat: 37.87, rad: 18.0 },
-    { name: '呼和浩特', lng: 111.67, lat: 40.82, rad: 10.0 },
-    { name: '兰州', lng: 103.82, lat: 36.06, rad: 12.0 },
-    { name: '西宁', lng: 101.78, lat: 36.62, rad: 6.0 },
-    { name: '银川', lng: 106.27, lat: 38.47, rad: 8.0 },
-    { name: '贵阳', lng: 106.63, lat: 26.65, rad: 16.0 },
-    { name: '昆明', lng: 102.83, lat: 24.88, rad: 14.0 },
-    { name: '南宁', lng: 108.37, lat: 22.82, rad: 18.0 },
-    { name: '海口', lng: 110.35, lat: 20.02, rad: 14.0 },
-    { name: '乌鲁木齐', lng: 87.62, lat: 43.83, rad: 14.0 },
-    { name: '拉萨', lng: 91.17, lat: 29.65, rad: 2.0 },
-    // 中等城市
-    { name: '苏州', lng: 120.59, lat: 31.30, rad: 28.0 },
-    { name: '东莞', lng: 113.75, lat: 23.05, rad: 32.0 },
-    { name: '宁波', lng: 121.54, lat: 29.87, rad: 22.0 },
-    { name: '无锡', lng: 120.31, lat: 31.57, rad: 26.0 },
-    { name: '常州', lng: 119.97, lat: 31.81, rad: 22.0 },
-    { name: '温州', lng: 120.70, lat: 28.00, rad: 16.0 },
-    { name: '绍兴', lng: 120.58, lat: 30.05, rad: 16.0 },
-    { name: '金华', lng: 119.65, lat: 29.08, rad: 12.0 },
-    { name: '台州', lng: 121.42, lat: 28.66, rad: 10.0 },
-    { name: '珠海', lng: 113.58, lat: 22.27, rad: 16.0 },
-    { name: '中山', lng: 113.38, lat: 22.52, rad: 20.0 },
-    { name: '惠州', lng: 114.42, lat: 23.11, rad: 14.0 },
-    { name: '佛山', lng: 113.12, lat: 23.02, rad: 24.0 },
-    { name: '江门', lng: 113.08, lat: 22.58, rad: 10.0 },
-    { name: '湛江', lng: 110.36, lat: 21.27, rad: 6.0 },
-    { name: '桂林', lng: 110.29, lat: 25.28, rad: 5.0 },
-    { name: '柳州', lng: 109.42, lat: 24.33, rad: 6.0 },
-    { name: '北海', lng: 109.12, lat: 21.48, rad: 4.0 },
-    { name: '三亚', lng: 109.51, lat: 18.25, rad: 3.0 },
-    { name: '洛阳', lng: 112.45, lat: 34.68, rad: 8.0 },
-    { name: '开封', lng: 114.35, lat: 34.80, rad: 8.0 },
-    { name: '徐州', lng: 117.18, lat: 34.27, rad: 10.0 },
-    { name: '扬州', lng: 119.42, lat: 32.39, rad: 10.0 },
-    { name: '芜湖', lng: 118.43, lat: 31.35, rad: 8.0 },
-    { name: '蚌埠', lng: 117.39, lat: 32.92, rad: 6.0 },
-    { name: '宜昌', lng: 111.29, lat: 30.69, rad: 4.0 },
-    { name: '襄阳', lng: 112.15, lat: 32.04, rad: 5.0 },
-    { name: '株洲', lng: 113.13, lat: 27.83, rad: 8.0 },
-    { name: '岳阳', lng: 113.11, lat: 29.37, rad: 4.0 },
-    { name: '九江', lng: 116.00, lat: 29.71, rad: 4.0 },
-    { name: '赣州', lng: 114.94, lat: 25.83, rad: 3.0 },
-    { name: '锦州', lng: 121.13, lat: 41.10, rad: 5.0 },
-    { name: '鞍山', lng: 122.99, lat: 41.11, rad: 8.0 },
-    { name: '齐齐哈尔', lng: 123.92, lat: 47.35, rad: 3.0 },
-    { name: '大庆', lng: 125.03, lat: 46.59, rad: 4.0 },
-    { name: '佳木斯', lng: 130.32, lat: 46.80, rad: 1.5 },
-    { name: '包头', lng: 109.84, lat: 40.66, rad: 6.0 },
-    { name: '鄂尔多斯', lng: 109.78, lat: 39.61, rad: 3.0 },
-    { name: '天水', lng: 105.72, lat: 34.58, rad: 2.0 },
-    { name: '酒泉', lng: 98.52, lat: 39.74, rad: 1.0 },
-    { name: '嘉峪关', lng: 98.29, lat: 39.77, rad: 1.2 },
-    { name: '格尔木', lng: 94.90, lat: 36.42, rad: 0.5 },
-    { name: '玉树', lng: 97.01, lat: 33.00, rad: 0.2 },
-    { name: '丽江', lng: 100.23, lat: 26.86, rad: 1.0 },
-    { name: '大理', lng: 100.23, lat: 25.61, rad: 1.5 },
-    { name: '香格里拉', lng: 99.70, lat: 27.83, rad: 0.3 },
-    { name: '喀什', lng: 75.99, lat: 39.47, rad: 1.5 },
-    { name: '伊宁', lng: 81.32, lat: 43.92, rad: 1.5 },
-    { name: '阿克苏', lng: 80.26, lat: 41.17, rad: 1.2 },
-    { name: '吐鲁番', lng: 89.19, lat: 42.95, rad: 1.0 },
-    { name: '哈密', lng: 93.51, lat: 42.83, rad: 0.8 },
-    { name: '日喀则', lng: 88.89, lat: 29.27, rad: 0.4 },
-    { name: '那曲', lng: 92.07, lat: 31.48, rad: 0.15 },
-    { name: '阿里', lng: 80.10, lat: 32.50, rad: 0.08 },
-    { name: '林芝', lng: 94.36, lat: 29.65, rad: 0.2 },
-    { name: '阿坝', lng: 101.71, lat: 31.90, rad: 0.3 },
-    { name: '甘孜', lng: 99.99, lat: 31.62, rad: 0.25 },
-    { name: '稻城', lng: 100.30, lat: 29.04, rad: 0.1 },
-    { name: '德令哈', lng: 97.37, lat: 37.37, rad: 0.3 },
-    { name: '漠河', lng: 122.53, lat: 53.48, rad: 0.4 },
-    { name: '呼伦贝尔', lng: 119.77, lat: 49.21, rad: 0.5 },
-    { name: '锡林浩特', lng: 116.09, lat: 43.93, rad: 0.6 },
-    { name: '阿拉善', lng: 105.70, lat: 38.83, rad: 0.4 },
-    { name: '阿尔山', lng: 119.94, lat: 47.18, rad: 0.2 },
-    { name: '可可西里', lng: 91.50, lat: 35.30, rad: 0.05 },
-  ];
+  function haversineDist(lng1, lat1, lng2, lat2) {
+    var R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+    var a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
 
-  // ── 基于距离加权插值估算 Bortle 等级 ───────────────
   function estimateBortle(lng, lat) {
-    // 计算到最近城市的光污染影响
-    let totalWeight = 0;
-    let weightedRad = 0;
-    let closestDist = Infinity;
-    let closestCity = null;
-
-    for (const city of CITY_VIIRS_DATA) {
-      const d = haversineDist(lng, lat, city.lng, city.lat);
-      if (d < closestDist) {
-        closestDist = d;
-        closestCity = city;
-      }
-      // 使用反距离加权，衰减半径约 80km（城市光影响范围）
-      const decayDist = 80; // km
-      const weight = Math.exp(-d / decayDist) * city.rad;
-      weightedRad += weight;
-      totalWeight += Math.exp(-d / decayDist);
+    var totalW = 0, weightedR = 0, closestD = Infinity, closestCity = null;
+    for (var i=0; i<CITY_VIIRS.length; i++) {
+      var c = CITY_VIIRS[i], d = haversineDist(lng, lat, c.lng, c.lat);
+      if (d < closestD) { closestD = d; closestCity = c; }
+      var w = Math.exp(-d/80)*c.rad;
+      weightedR += w; totalW += Math.exp(-d/80);
     }
-
-    // 综合辐射值：加权平均 + 最近城市贡献
-    const baseRad = totalWeight > 0 ? weightedRad / totalWeight : 0.2;
-    // 如果非常靠近某个城市，提高权重
-    let radiance;
-    if (closestDist < 5) {
-      radiance = closestCity.rad; // 在城市内部，用峰值
-    } else {
-      radiance = baseRad;
-    }
-
+    var radiance = closestD < 5 ? closestCity.rad : (totalW>0 ? weightedR/totalW : 0.2);
     return radianceToBortle(radiance);
   }
 
-  // Haversine 距离计算（公里）
-  function haversineDist(lng1, lat1, lng2, lat2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2
-      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
-      * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  function getBortle(lng, lat, cb) {
+    setTimeout(function() { cb(estimateBortle(lng,lat)); }, 0);
   }
 
-  // ── 同步接口 ────────────────────────────────────────
-  function getBortle(lng, lat, callback) {
-    // 直接同步计算，不再依赖网络请求
-    const result = estimateBortle(lng, lat);
-    // 使用 setTimeout 保持异步接口兼容性
-    setTimeout(() => callback(result), 0);
-  }
+  // ---- DOM ----
+  var loadingEl = document.getElementById('loading');
+  var statusText = document.getElementById('status-text');
+  var btnLayer = document.getElementById('btn-layer');
+  var btnLocate = document.getElementById('btn-locate');
+  var mobLoc = document.getElementById('mob-loc');
+  var mobCoords = document.getElementById('mob-coords');
+  var mobBortle = document.getElementById('mob-bortle');
 
-  // ── 更新 UI（异步获取精确 Bortle）─────────────────────
-  function updateUI(lng, lat, address) {
-    getBortle(lng, lat, function(bortleData) {
-      const [level, label, color, desc] = bortleData;
-      currentBortle = { level, label, color, desc };
+  // ---- Map Init ----
+  var map = new AMap.Map('map', {
+    zoom: 5,
+    center: [104.0, 36.5],
+    viewMode: '2D',
+    mapStyle: 'amap://styles/dark'
+  });
 
-      statusDot.className = 'status-dot located';
-      statusText.textContent = '📍 ' + (address || label + ' · ' + lng.toFixed(2) + ', ' + lat.toFixed(2));
+  map.addControl(new AMap.Scale());
+  map.addControl(new AMap.ToolBar({
+    position: { right:'16px', bottom:'160px' }, liteStyle:true
+  }));
 
-      mobLoc.textContent = label + ' · ' + (address || '当前位置');
-      mobCoords.textContent = lng.toFixed(4) + ', ' + lat.toFixed(4);
-      mobBortle.textContent = 'Bortle ' + level;
-      mobBortle.style.background = color;
-      mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
-    });
-  }
+  // ---- Canvas Light Pollution Layer ----
+  var lightLayerVisible = true;
+  var canvas = document.createElement('canvas');
+  var ctx = canvas.getContext('2d');
 
-  // ── 光污染可视化图层（本地数据热力渲染，秒加载）────
-  function createLightLayer() {
-    // 使用 Canvas CustomLayer 渲染光污染热力图
-    // 数据来自本地 CITY_VIIRS_DATA，零网络延迟
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+  var lightLayer = new AMap.CustomLayer(canvas, { zIndex:10, zooms:[3,18], alwaysRender:true });
 
-    const customLayer = new AMap.CustomLayer(canvas, {
-      zIndex: 10,
-      zooms: [3, 18],
-      alwaysRender: true
-    });
+  lightLayer.render = function() {
+    var size = map.getSize();
+    canvas.width = size.width; canvas.height = size.height;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    customLayer.bringTop = function() {
-      customLayer.setzIndex(10);
-    };
+    var zoom = map.getZoom();
+    for (var i=0; i<CITY_VIIRS.length; i++) {
+      var city = CITY_VIIRS[i];
+      var px = map.lngLatToContainer(new AMap.LngLat(city.lng, city.lat));
+      if (!px) continue;
+      var baseR = Math.max(3, city.rad * 0.8);
+      var radius = baseR * Math.pow(2, zoom-5) * 0.4;
+      if (radius < 0.5) continue;
+      if (px.x < -radius*3 || px.y < -radius*3 || px.x > canvas.width+radius*3 || px.y > canvas.height+radius*3) continue;
 
-    customLayer.render = function() {
-      const size = map.getSize();
-      canvas.width = size.width;
-      canvas.height = size.height;
-
-      // 半透明暗色背景
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // 渲染每个城市的光污染光晕
-      const zoom = map.getZoom();
-
-      for (const city of CITY_VIIRS_DATA) {
-        const px = map.lngLatToContainer(new AMap.LngLat(city.lng, city.lat));
-        if (!px) continue;
-
-        // 光晕半径：随缩放级别增大
-        // 城市光害范围约 30-50km，根据比例尺换算
-        const baseRadius = Math.max(3, city.rad * 0.8);
-        const radius = baseRadius * Math.pow(2, zoom - 5) * 0.4;
-
-        if (radius < 0.5) continue; // 太小不渲染
-        if (px.x < -radius * 3 || px.y < -radius * 3 ||
-            px.x > canvas.width + radius * 3 || px.y > canvas.height + radius * 3) continue;
-
-        // 颜色：Bortle 等级对应
-        const [, , color] = radianceToBortle(city.rad);
-
-        // 绘制多层光晕（从外到内渐亮）
-        for (let i = 4; i >= 0; i--) {
-          const alpha = (0.12 + i * 0.14) * (layerOpacity || 0.7);
-          const r = radius * (0.3 + i * 0.18);
-          if (r < 0.3) continue;
-
-          const grad = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, r);
-          const brightColor = brightenColor(color, i * 0.1);
-          grad.addColorStop(0, brightColor);
-          grad.addColorStop(0.5, color + hexAlpha(alpha * 0.8));
-          grad.addColorStop(1, 'rgba(0,0,0,0)');
-
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(px.x, px.y, r, 0, Math.PI * 2);
-          ctx.fill();
-        }
+      var color = radianceToBortle(city.rad)[2];
+      for (var j=4; j>=0; j--) {
+        var alpha = (0.11 + j*0.13) * 0.7;
+        var r = radius * (0.25 + j*0.19);
+        if (r < 0.3) continue;
+        var grad = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, r);
+        var brightHex = brighten(color, j*0.08);
+        var aStr = hexAlpha(alpha*0.8);
+        grad.addColorStop(0, brightHex);
+        grad.addColorStop(0.5, color.replace('#','#') + aStr);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(px.x, px.y, r, 0, Math.PI*2); ctx.fill();
       }
-    };
-
-    function hexAlpha(alpha) {
-      const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0');
-      return a;
     }
+  };
 
-    function brightenColor(hex, amount) {
-      const r = Math.min(255, parseInt(hex.slice(1,3), 16) + amount * 50);
-      const g = Math.min(255, parseInt(hex.slice(3,5), 16) + amount * 50);
-      const b = Math.min(255, parseInt(hex.slice(5,7), 16) + amount * 50);
-      return `rgba(${r},${g},${b},0.9)`;
-    }
-
-    let layerOpacity = 0.75;
-
-    customLayer.show = function() {
-      customLayer.setMap(map);
-      layerVisible = true;
-      layerOpacity = 0.75;
-      customLayer.reRender();
-    };
-
-    customLayer.hide = function() {
-      customLayer.setMap(null);
-      layerVisible = false;
-    };
-
-    customLayer.setOpacity = function(op) {
-      layerOpacity = op;
-      customLayer.reRender();
-    };
-
-    return customLayer;
+  function hexAlpha(a) {
+    return Math.round(Math.max(0,Math.min(1,a))*255).toString(16).padStart(2,'0');
+  }
+  function brighten(hex, amount) {
+    var r = Math.min(255, parseInt(hex.slice(1,3),16)+amount*40);
+    var g = Math.min(255, parseInt(hex.slice(3,5),16)+amount*40);
+    var b = Math.min(255, parseInt(hex.slice(5,7),16)+amount*40);
+    return 'rgba('+r+','+g+','+b+',0.9)';
   }
 
-  // ── 初始化地图 ──────────────────────────────────────────
-  function initMap() {
-    map = new AMap.Map('map-container', {
-      zoom: 5,
-      center: [104.0, 36.5],     // 中国地理中心 (兰州附近)
-      viewMode: '2D',
-      mapStyle: 'amap://styles/dark',  // 暗色主题
-      features: ['bg', 'road', 'building', 'point']
+  lightLayer.setMap(map);
+  loadingEl.classList.add('hidden'); // <-- IMMEDIATELY hide loading
+  statusText.textContent = '✅ 地图已就绪，等待定位...';
+
+  // ---- Geolocation ----
+  var geolocation, userMarker, userInfoWin, clickMarker, clickInfoWin;
+
+  AMap.plugin('AMap.Geolocation', function() {
+    geolocation = new AMap.Geolocation({
+      enableHighAccuracy:true, timeout:10000,
+      buttonPosition:'RB', buttonOffset:new AMap.Pixel(12,16),
+      zoomToAccuracy:true, showCircle:true, panToLocation:true
     });
+    map.addControl(geolocation);
+    doLocate();
+  });
 
-    // 比例尺
-    map.addControl(new AMap.Scale());
-
-    // 缩放控件
-    map.addControl(new AMap.ToolBar({
-      position: { right: '16px', bottom: '160px' },
-      liteStyle: true
-    }));
-
-    // 光污染图层
-    lightLayer = createLightLayer();
-    lightLayer.setMap(map);
-
-    // 隐藏加载动画（地图 ready 事件 + 3秒兜底）
-    map.on('complete', function() {
-      loadingEl.classList.add('done');
-    });
-    setTimeout(function() {
-      loadingEl.classList.add('done');
-    }, 3000);
-
-    // 初始化搜索
-    initSearch();
-
-    // ══════ 地图点击：放置标记并显示光污染等级 ══════
-    map.on('click', function(e) {
-      const lng = e.lnglat.lng;
-      const lat = e.lnglat.lat;
-
-      // 逆地理编码获取地址
-      AMap.plugin('AMap.Geocoder', function() {
-        const geocoder = new AMap.Geocoder({});
-        geocoder.getAddress([lng, lat], function(geoStatus, geoResult) {
-          const address = (geoStatus === 'complete' && geoResult.regeocode)
-            ? geoResult.regeocode.formattedAddress
-            : lng.toFixed(4) + ', ' + lat.toFixed(4);
-
-          // 移除旧点击标记
-          if (clickMarker) { map.remove(clickMarker); clickMarker = null; }
-          if (clickInfoWin) { map.remove(clickInfoWin); clickInfoWin = null; }
-
-          // 新标记
-          clickMarker = new AMap.Marker({
-            position: [lng, lat],
-            icon: new AMap.Icon({
-              size: new AMap.Size(28, 42),
-              image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
-              imageSize: new AMap.Size(28, 42),
-              imageOffset: new AMap.Pixel(0, 0)
-            }),
-            anchor: 'bottom-center',
-            zIndex: 110
-          });
-          map.add(clickMarker);
-
-          // Bortle（从 NASA 瓦片精确采样像素）
-          getBortle(lng, lat, function(bortleData) {
-            const [level, label, color, desc] = bortleData;
-
-            clickInfoWin = new AMap.InfoWindow({
-              content:
-                '<div style="color:#ccc;line-height:1.9;max-width:280px;">'
-                + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 标记点</div>'
-                + '<div style="font-size:11px;color:#999;">' + address + '</div>'
-                + '<div style="margin-top:6px;font-size:12px;color:#888;">坐标: ' + lng.toFixed(4) + ', ' + lat.toFixed(4) + '</div>'
-                + '<div style="margin-top:6px;">'
-                +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
-                +     'background:' + color + ';vertical-align:middle;margin-right:6px;"></span>'
-                +   '<strong>Bortle ' + level + ' 级 · ' + label + '</strong>'
-                + '</div>'
-                + '<div style="font-size:11px;color:#999;margin-top:2px;">' + desc + '</div>'
-                + '<div style="font-size:10px;color:#666;margin-top:4px;">基于 NASA 卫星像素采样</div>'
-                + '</div>',
-              offset: new AMap.Pixel(0, -46),
-              isCustom: true
-            });
-            clickInfoWin.open(map, [lng, lat]);
-
-            // 更新状态栏
-            statusText.textContent = '📍 ' + address;
-            mobLoc.textContent = label + ' · 标记点';
-            mobCoords.textContent = lng.toFixed(4) + ', ' + lat.toFixed(4);
-            mobBortle.textContent = 'Bortle ' + level;
-            mobBortle.style.background = color;
-            mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
-          });
-      });
-    });
-
-    // ══════ 定位 ══════
-    AMap.plugin('AMap.Geolocation', function() {
-      geolocation = new AMap.Geolocation({
-        enableHighAccuracy: true,
-        timeout: 10000,
-        buttonPosition: 'RB',
-        buttonOffset: new AMap.Pixel(12, 16),
-        zoomToAccuracy: true,
-        showCircle: true,
-        panToLocation: true
-      });
-      map.addControl(geolocation);
-
-      // 自动定位
-      doLocate(false);
-    });
-  }
-
-  // ── 定位 ────────────────────────────────────────────────
-  function doLocate(silent) {
+  function doLocate() {
     if (!geolocation) return;
-
-    btnLocate.style.opacity = '0.5';
-    statusText.textContent = '正在定位...';
-
+    btnLocate.style.opacity='0.5';
     geolocation.getCurrentPosition(function(status, result) {
-      btnLocate.style.opacity = '1';
-
+      btnLocate.style.opacity='1';
       if (status === 'complete') {
-        const { lng, lat } = result.position;
-        const address = result.formattedAddress || '';
+        var lng = result.position.lng, lat = result.position.lat;
+        var addr = result.formattedAddress || '';
+        if (userMarker) { map.remove(userMarker); userMarker=null; }
+        if (userInfoWin) { map.remove(userInfoWin); userInfoWin=null; }
 
-        // 移除旧标记
-        if (userMarker) { map.remove(userMarker); userMarker = null; }
-        if (userInfoWin) { map.remove(userInfoWin); userInfoWin = null; }
-
-        // 添加标记
         userMarker = new AMap.Marker({
-          position: [lng, lat],
-          icon: new AMap.Icon({
-            size: new AMap.Size(28, 42),
-            image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png',
-            imageSize: new AMap.Size(28, 42),
-            imageOffset: new AMap.Pixel(0, 0)
-          }),
-          anchor: 'bottom-center',
-          zIndex: 110
+          position:[lng,lat],
+          icon: new AMap.Icon({ size:new AMap.Size(28,42), image:'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png', imageSize:new AMap.Size(28,42), imageOffset:new AMap.Pixel(0,0) }),
+          anchor:'bottom-center', zIndex:110
         });
         map.add(userMarker);
 
-        // Bortle 信息（NASA 像素采样）
-        getBortle(lng, lat, function(bortleData) {
-          const [level, label, color, desc] = bortleData;
-
-          // 信息窗口
+        getBortle(lng, lat, function(bortle) {
+          var level=bortle[0],label=bortle[1],color=bortle[2],desc=bortle[3];
           userInfoWin = new AMap.InfoWindow({
-            content:
-              '<div style="color:#ccc;line-height:1.9;">'
-              + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 你的位置</div>'
-              + '<div>' + address + '</div>'
-              + '<div style="margin-top:6px;">'
-              +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
-              +     'background:' + color + ';vertical-align:middle;margin-right:6px;"></span>'
-              +   '<strong>Bortle ' + level + ' 级 · ' + label + '</strong>'
-              + '</div>'
-              + '<div style="font-size:11px;color:#999;margin-top:2px;">' + desc + '</div>'
-              + '<div style="font-size:10px;color:#666;margin-top:6px;">'
-              +   '💡 地图上暗色区域 = 适合观星 | 亮色区域 = 光污染严重'
-              + '</div>'
-              + '</div>',
-            offset: new AMap.Pixel(0, -48),
-            isCustom: true
+            content: '<div style="color:#ccc;line-height:1.9;font-size:13px;"><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 你的位置</div><div>'+addr+'</div><div style="margin-top:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:'+color+';vertical-align:middle;margin-right:6px;"></span><strong>Bortle '+level+' 级 · '+label+'</strong></div><div style="font-size:11px;color:#999;margin-top:2px;">'+desc+'</div></div>',
+            offset:new AMap.Pixel(0,-48), isCustom:true
           });
-          userInfoWin.open(map, [lng, lat]);
-
-          updateUI(lng, lat, address);
+          userInfoWin.open(map,[lng,lat]);
+          updateUI(lng, lat, addr, bortle);
         });
-
       } else {
-        statusDot.className = 'status-dot error';
-        statusText.textContent = '⚠️ 定位失败，请手动查看地图';
+        statusText.textContent = '⚠️ 定位失败，可手动拖动地图';
         mobLoc.textContent = '定位失败';
-        mobCoords.textContent = result && result.message ? result.message : '请检查定位权限';
-        mobBortle.textContent = '—';
-
-        if (!silent) {
-          console.warn('定位失败:', result);
-        }
-
-        // IP 定位兜底
         AMap.plugin('AMap.CitySearch', function() {
-          const cs = new AMap.CitySearch();
-          cs.getLocalCity(function(csStatus, csResult) {
-            if (csStatus === 'complete' && csResult.info === 'OK') {
-              statusText.textContent = '📍 IP 定位: ' + csResult.city;
-              mobLoc.textContent = csResult.city;
-            }
+          new AMap.CitySearch().getLocalCity(function(cs, r) {
+            if (cs==='complete' && r.info==='OK') { statusText.textContent='📍 '+r.city; mobLoc.textContent=r.city; }
           });
         });
       }
     });
   }
 
-  // ── 在地图上显示搜索结果 ──────────────────────────────
-  function showSearchResult(lng, lat, name, address) {
-    // 移动地图到目标位置
-    map.setZoomAndCenter(13, [lng, lat]);
-
-    // 移除旧搜索标记
-    if (searchMarker) { map.remove(searchMarker); searchMarker = null; }
-    if (searchInfoWin) { map.remove(searchInfoWin); searchInfoWin = null; }
-
-    // 添加标记
-    searchMarker = new AMap.Marker({
-      position: [lng, lat],
-      icon: new AMap.Icon({
-        size: new AMap.Size(30, 38),
-        image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
-        imageSize: new AMap.Size(30, 38),
-        imageOffset: new AMap.Pixel(0, 0)
-      }),
-      anchor: 'bottom-center',
-      zIndex: 110
-    });
-    map.add(searchMarker);
-
-    // Bortle 信息（NASA 像素采样）
-    getBortle(lng, lat, function(bortleData) {
-      const [level, label, color, desc] = bortleData;
-
-    searchInfoWin = new AMap.InfoWindow({
-      content:
-        '<div style="color:#ccc;line-height:1.9;">'
-        + '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">' + name + '</div>'
-        + '<div style="font-size:11px;color:#999;">' + address + '</div>'
-        + '<div style="margin-top:6px;">'
-        +   '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;'
-        +     'background:' + color + ';vertical-align:middle;margin-right:6px;"></span>'
-        +   '<strong>Bortle ' + level + ' 级 · ' + label + '</strong>'
-        + '</div>'
-        + '<div style="font-size:11px;color:#999;margin-top:2px;">' + desc + '</div>'
-        + '</div>',
-      offset: new AMap.Pixel(0, -42),
-      isCustom: true
-    });
-    searchInfoWin.open(map, [lng, lat]);
-
-    // 更新 header 状态
-    statusDot.className = 'status-dot located';
-    statusText.textContent = '🔍 ' + name + ' · Bortle ' + level + ' 级';
-    mobLoc.textContent = label + ' · ' + name;
-    mobCoords.textContent = lng.toFixed(4) + ', ' + lat.toFixed(4);
-    mobBortle.textContent = 'Bortle ' + level;
+  function updateUI(lng, lat, addr, bortle) {
+    var level=bortle[0],label=bortle[1],color=bortle[2];
+    statusText.textContent = '📍 '+(addr||'');
+    mobLoc.textContent = label+' · '+(addr||'当前位置');
+    mobCoords.textContent = lng.toFixed(4)+', '+lat.toFixed(4);
+    mobBortle.textContent = 'Bortle '+level;
     mobBortle.style.background = color;
-    mobBortle.style.color = level <= 2 ? '#aaccff' : '#fff';
-  });;
-
-  // ── 初始化搜索 ──────────────────────────────────────────
-  function initSearch() {
-    // 自动补全
-    AMap.plugin('AMap.AutoComplete', function() {
-      autoComplete = new AMap.AutoComplete({
-        input: 'search-input',
-        city: '全国',
-        citylimit: false
-      });
-
-      autoComplete.on('select', function(e) {
-        if (e.poi && e.poi.location) {
-          const lng = e.poi.location.lng;
-          const lat = e.poi.location.lat;
-          const name = e.poi.name;
-          const address = e.poi.district + (e.poi.address || '');
-          showSearchResult(lng, lat, name, address);
-        }
-      });
-    });
-
-    // 地点搜索（回车触发）
-    AMap.plugin('AMap.PlaceSearch', function() {
-      placeSearch = new AMap.PlaceSearch({
-        pageSize: 5,
-        city: '全国',
-        citylimit: false,
-        extensions: 'base'
-      });
-    });
+    mobBortle.style.color = level<=2?'#aaccff':'#fff';
   }
 
-  // ── 搜索输入事件 ──────────────────────────────────────
-  searchInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      searchInput.blur();
-      searchInput.value = '';
-      searchClear.classList.remove('visible');
-      return;
-    }
-    if (e.key === 'Enter') {
-      const keyword = searchInput.value.trim();
-      if (!keyword || !placeSearch) return;
-      placeSearch.search(keyword, function(status, result) {
-        if (status === 'complete' && result.poiList && result.poiList.pois.length > 0) {
-          const poi = result.poiList.pois[0];
-          if (poi.location) {
-            showSearchResult(
-              poi.location.lng,
-              poi.location.lat,
-              poi.name,
-              poi.pname + poi.cityname + poi.adname + (poi.address || '')
-            );
-          }
-        } else {
-          statusText.textContent = '⚠️ 未找到地点: ' + keyword;
-        }
+  // ---- Map click ----
+  map.on('click', function(e) {
+    var lng = e.lnglat.lng, lat = e.lnglat.lat;
+    AMap.plugin('AMap.Geocoder', function() {
+      new AMap.Geocoder({}).getAddress([lng,lat], function(gs, gr) {
+        var addr = (gs==='complete' && gr.regeocode) ? gr.regeocode.formattedAddress : lng.toFixed(4)+', '+lat.toFixed(4);
+        if (clickMarker) { map.remove(clickMarker); clickMarker=null; }
+        if (clickInfoWin) { map.remove(clickInfoWin); clickInfoWin=null; }
+        clickMarker = new AMap.Marker({
+          position:[lng,lat],
+          icon: new AMap.Icon({ size:new AMap.Size(28,42), image:'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png', imageSize:new AMap.Size(28,42), imageOffset:new AMap.Pixel(0,0) }),
+          anchor:'bottom-center', zIndex:110
+        });
+        map.add(clickMarker);
+
+        getBortle(lng, lat, function(bortle) {
+          var level=bortle[0],label=bortle[1],color=bortle[2],desc=bortle[3];
+          clickInfoWin = new AMap.InfoWindow({
+            content: '<div style="color:#ccc;line-height:1.9;font-size:13px;max-width:260px;"><div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;">📍 标记点</div><div style="font-size:11px;color:#999;">'+addr+'</div><div style="margin-top:6px;font-size:12px;color:#888;">坐标: '+lng.toFixed(4)+', '+lat.toFixed(4)+'</div><div style="margin-top:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:'+color+';vertical-align:middle;margin-right:6px;"></span><strong>Bortle '+level+' 级 · '+label+'</strong></div><div style="font-size:11px;color:#999;margin-top:2px;">'+desc+'</div></div>',
+            offset:new AMap.Pixel(0,-46), isCustom:true
+          });
+          clickInfoWin.open(map,[lng,lat]);
+          updateUI(lng, lat, addr, bortle);
+        });
       });
-    }
+    });
   });
 
-  searchInput.addEventListener('input', function() {
-    if (searchInput.value) {
-      searchClear.classList.add('visible');
-    } else {
-      searchClear.classList.remove('visible');
-    }
-  });
-
-  searchClear.addEventListener('click', function() {
-    searchInput.value = '';
-    searchClear.classList.remove('visible');
-    searchInput.focus();
-  });
-
-  // ── 按钮事件 ────────────────────────────────────────────
+  // ---- Controls ----
   btnLayer.addEventListener('click', function() {
-    if (layerVisible) {
-      lightLayer.hide();
-      btnLayer.classList.remove('active');
-    } else {
-      lightLayer.show();
-      btnLayer.classList.add('active');
-    }
-    layerVisible = !layerVisible;
+    if (lightLayerVisible) { lightLayer.setMap(null); btnLayer.classList.remove('active'); }
+    else { lightLayer.setMap(map); btnLayer.classList.add('active'); }
+    lightLayerVisible = !lightLayerVisible;
   });
 
-  btnLocate.addEventListener('click', function() { doLocate(false); });
+  btnLocate.addEventListener('click', doLocate);
 
-  btnFullscreen.addEventListener('click', function() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen();
-    }
-  });
-
-  // ── 键盘快捷键 ──────────────────────────────────────────
-  document.addEventListener('keydown', function(e) {
-    // 不在输入框内时响应
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    switch(e.key.toLowerCase()) {
-      case 'l': btnLayer.click(); break;
-      case 'f': btnLocate.click(); break;
-      case 'f11': e.preventDefault(); btnFullscreen.click(); break;
-    }
-  });
-
-  // ── 启动 ────────────────────────────────────────────────
-  function bootstrap() {
-    if (typeof AMap !== 'undefined') {
-      initMap();
-    } else {
-      loadingEl.innerHTML =
-        '<div style="color:#e04a4a;font-size:14px;">⚠️ 地图加载失败</div>'
-        + '<div style="font-size:11px;color:#999;margin-top:6px;">'
-        + '请检查：<br>1. 网络连接<br>2. API Key 是否正确<br>3. 安全密钥是否匹配'
-        + '</div>';
-      loadingEl.classList.remove('done');
-    }
-  }
-
-  // AMap 通常通过同步 script 标签加载，但如果未加载完，等待 load 事件
-  if (typeof AMap !== 'undefined') {
-    bootstrap();
-  } else {
-    window.addEventListener('load', bootstrap);
+  // ---- Mobile responsive ----
+  if (window.innerWidth <= 640) {
+    document.getElementById('mobile-bar').style.display = 'block';
   }
 })();
 </script>
